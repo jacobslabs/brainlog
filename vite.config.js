@@ -9,6 +9,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         editor: resolve(__dirname, 'editor.html'),
         login: resolve(__dirname, 'login.html'),
+        stats: resolve(__dirname, 'stats.html'),
         profile: resolve(__dirname, 'profile.html'),
       },
     },
