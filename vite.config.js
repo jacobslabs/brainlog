@@ -18,14 +18,14 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      workbox: {
+        navigateFallback: null, 
+      },
       manifest: {
         name: 'BrainLog',
         short_name: 'BrainLog',
         description: 'My Second Brain',
         theme_color: '#0d0d0d',
-        workbox: {
-          navigateFallback: null, 
-        },
         icons: [
           {
             src: 'pwa-192x192.png', // You need to add these images to /public folder later
