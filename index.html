@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrainLog</title>
+    
+    <link rel="stylesheet" href="./style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
+    
+    <script>
+        (function() {
+            const saved = localStorage.getItem('brainlog_theme');
+            const sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = (saved === 'system' || !saved) ? (sys ? 'dark' : 'light') : saved;
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+</head>
+<body class="flex flex-col items-center min-h-screen p-6 md:p-12">
+
+    <div id="modal-overlay" class="fixed inset-0 hidden flex items-center justify-center z-50 backdrop-blur-sm" style="background-color: var(--modal-bg);">
+        <div class="border rounded-lg p-6 w-full max-w-sm shadow-2xl" onclick="event.stopPropagation()" style="background-color: var(--bg-card); border-color: var(--border-color);">
+            <h3 id="modal-title" class="text-lg font-semibold mb-4">New Folder</h3>
+            <input type="text" id="modal-input" class="w-full border rounded p-3 focus:outline-none mb-6" 
+                   style="background-color: var(--input-bg); border-color: var(--border-color); color: var(--text-main);"
+                   placeholder="Enter folder name..." autocomplete="off">
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal()" class="px-4 py-2 text-sm opacity-60 hover:opacity-100 transition-opacity">Cancel</button>
+                <button onclick="handleModalSubmit()" class="px-4 py-2 text-sm bg-neutral-800 text-white rounded transition-colors font-medium hover:bg-black dark:bg-white dark:text-black dark:hover:bg-neutral-200">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="search-modal" class="fixed inset-0 hidden flex items-start justify-center z-[60] backdrop-blur-sm pt-24 transition-opacity duration-200" style="background-color: var(--modal-bg);">
+        <div class="w-full max-w-2xl mx-4 shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[60vh]" onclick="event.stopPropagation()" style="background-color: var(--bg-card); border: 1px solid var(--border-color);">
+            
+            <div class="border-b p-4 flex items-center gap-3" style="border-color: var(--border-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 opacity-50">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input type="text" id="search-input" class="w-full bg-transparent outline-none text-lg placeholder-neutral-400" 
+                       placeholder="Search notes..." autocomplete="off">
+                <button onclick="toggleSearch()" class="text-xs border px-2 py-1 rounded opacity-50 hover:opacity-100 transition-opacity" style="border-color: var(--border-color);">ESC</button>
+            </div>
+
+            <div id="search-results" class="overflow-y-auto p-2 flex flex-col gap-1">
+                <div class="text-center py-8 text-sm opacity-50">Type to start searching...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full max-w-5xl">
+        
+        <div class="flex justify-between items-end mb-6 border-b pb-4" style="border-color: var(--border-color);">
+            <div>
+                <h1 onclick="navigateTo('root')" class="text-3xl font-bold tracking-tight cursor-pointer hover:opacity-80 transition-opacity">BrainLog</h1>
+                <div id="breadcrumbs" class="flex items-center text-sm mt-2"></div>
+            </div>
+
+            <div class="flex gap-3 items-center">
+                
+                <button onclick="toggleSearch()" class="view-btn" title="Search Notes (Cmd/Ctrl + K)">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                </button>
+
+                <button onclick="window.location.href='stats.html'" id="streak-badge" class="view-btn gap-1.5 font-semibold">
+                    <span>🔥</span>
+                    <span id="streak-count" class="text-orange-600 dark:text-orange-400">0</span>
+                </button>
+                
+                <button onclick="toggleTrash()" id="btn-trash" class="trash-btn" title="Trash">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                </button>
+
+                <a id="profile-link" href="profile.html" class="profile-btn" title="Settings & Profile">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                </a>
+
+            </div>
+        </div>
+
+        <div id="action-bar" class="flex gap-4 mb-6 action-bar">
+            <div onclick="createNote()" class="action-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                <span class="text-sm font-medium">New Note</span>
+            </div>
+            <div onclick="openModal('create')" class="action-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg>
+                <span class="text-sm font-medium">New Folder</span>
+            </div>
+        </div>
+
+        <div id="notes-container" class="notes-container grid-view"></div>
+    </div>
+
+    <script type="module">
+        import { db, auth } from './src/db.js';
+        
+        // Expose db to window so Profile/Logout can access it
+        window.db = db;
+
+        const STORAGE_KEY = 'elegant_writer_notes';
+        const VIEW_KEY = 'elegant_writer_view_pref';
+
+        let currentView = 'grid';
+        let currentFolderId = 'root'; 
+        let modalState = { mode: 'create', targetId: null };
+        let lastRenderChecksum = ''; 
+
+        async function initApp() {
+            const savedView = localStorage.getItem(VIEW_KEY) || 'grid';
+            requestAnimationFrame(() => setView(savedView));
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const folderParam = urlParams.get('folder');
+            if (folderParam) currentFolderId = folderParam;
+
+            render();
+            renderStreak();
+
+            try {
+                const user = await auth.getUser();
+                if (user) {
+                    const syncedItems = await db.sync(); 
+                    if (syncedItems) render(true); 
+                }
+            } catch (e) {
+                console.log("Offline or Auth error:", e);
+            }
+        }
+
+        function getItems() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+        function saveLocal(items) { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); render(); }
+
+        // --- FIXED: Async Create Note with Push Wait ---
+        window.createNote = async function() {
+            if (currentFolderId === 'trash') return;
+            
+            const items = getItems();
+            const newId = crypto.randomUUID();
+            const newNote = {
+                id: newId, type: 'note', parentId: currentFolderId, 
+                content: '<div><br></div>', updatedAt: Date.now(), isTrashed: false
+            };
+            
+            // 1. Save Locally
+            items.push(newNote);
+            saveLocal(items);     
+            
+            // 2. WAIT for Cloud Sync (Prevents data loss on nav)
+            await db.pushItem(newNote); 
+            
+            // 3. Navigate
+            window.location.href = `editor.html?id=${newId}`;
+        }
+
+        window.openModal = function(mode, targetId = null, currentName = '') {
+            if (currentFolderId === 'trash' && mode === 'create') return;
+            const overlay = document.getElementById('modal-overlay');
+            const title = document.getElementById('modal-title');
+            const input = document.getElementById('modal-input');
+
+            modalState = { mode, targetId };
+            if (mode === 'create') {
+                title.textContent = "New Folder";
+                input.value = "";
+                input.placeholder = "Enter folder name...";
+            } else {
+                title.textContent = "Rename Folder";
+                input.value = currentName;
+            }
+            overlay.classList.remove('hidden');
+            setTimeout(() => input.focus(), 50);
+        }
+
+        window.closeModal = function() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        window.handleModalSubmit = function() {
+            const input = document.getElementById('modal-input');
+            const name = input.value.trim();
+            if (!name) { window.closeModal(); return; }
+
+            const items = getItems();
+            let itemToSync = null;
+
+            if (modalState.mode === 'create') {
+                const newFolder = {
+                    id: crypto.randomUUID(), type: 'folder', parentId: currentFolderId,
+                    name: name, updatedAt: Date.now(), isTrashed: false
+                };
+                items.push(newFolder);
+                itemToSync = newFolder;
+            } else if (modalState.mode === 'rename') {
+                const index = items.findIndex(i => i.id === modalState.targetId);
+                if (index > -1) {
+                    items[index].name = name;
+                    items[index].updatedAt = Date.now();
+                    itemToSync = items[index];
+                }
+            }
+            saveLocal(items);          
+            if(itemToSync) db.pushItem(itemToSync);
+            window.closeModal();
+        }
+
+        window.deleteItem = function(event, itemId) {
+            event.preventDefault(); event.stopPropagation();
+            const items = getItems();
+            const index = items.findIndex(i => i.id === itemId);
+            if (index === -1) return;
+            const item = items[index];
+
+            if (item.isTrashed) {
+                if (!confirm("Permanently delete this?")) return;
+                items.splice(index, 1);
+                saveLocal(items);        
+                db.deleteItem(itemId);   
+            } else {
+                items[index].isTrashed = true;
+                items[index].trashedAt = Date.now();
+                saveLocal(items);        
+                db.pushItem(items[index]); 
+            }
+        }
+
+        window.restoreItem = function(event, itemId) {
+            event.preventDefault(); event.stopPropagation();
+            const items = getItems();
+            const index = items.findIndex(i => i.id === itemId);
+            if (index > -1) {
+                items[index].isTrashed = false;
+                delete items[index].trashedAt;
+                saveLocal(items);          
+                db.pushItem(items[index]); 
+            }
+        }
+
+        window.renameItem = function(event, itemId, currentName) {
+            event.preventDefault(); event.stopPropagation();
+            window.openModal('rename', itemId, currentName);
+        }
+
+        window.navigateTo = function(folderId) {
+            currentFolderId = folderId;
+            render();
+        }
+
+        window.toggleTrash = function() {
+            if (currentFolderId === 'trash') window.navigateTo('root');
+            else window.navigateTo('trash');
+        }
+
+        window.setView = function(view) {
+            currentView = view;
+            localStorage.setItem(VIEW_KEY, view);
+            
+            const container = document.getElementById('notes-container');
+            if (view === 'list') {
+                container.classList.remove('grid-view');
+                container.classList.add('list-view');
+            } else {
+                container.classList.remove('list-view');
+                container.classList.add('grid-view');
+            }
+            render(true);
+        }
+        document.getElementById('modal-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') window.handleModalSubmit();
+            if (e.key === 'Escape') window.closeModal();
+        });
+
+        window.addEventListener('DOMContentLoaded', initApp);
+
+        function renderBreadcrumbs() {
+            const container = document.getElementById('breadcrumbs');
+            const actionBar = document.getElementById('action-bar');
+            const trashBtn = document.getElementById('btn-trash');
+
+            if (currentFolderId === 'trash') {
+                container.innerHTML = '<span class="breadcrumb-item active text-red-400">Trash Directory</span>';
+                actionBar.classList.add('hidden');
+                trashBtn.classList.add('active');
+                return;
+            }
+            actionBar.classList.remove('hidden');
+            trashBtn.classList.remove('active');
+
+            const items = getItems();
+            let path = [];
+            let tempId = currentFolderId;
+            let safety = 0;
+            while (tempId !== 'root' && safety < 50) {
+                const folder = items.find(i => i.id === tempId);
+                if (folder) {
+                    path.unshift({ id: folder.id, name: folder.name });
+                    tempId = folder.parentId || 'root';
+                } else { tempId = 'root'; }
+                safety++;
+            }
+            path.unshift({ id: 'root', name: 'Home' });
+
+            container.innerHTML = path.map((crumb, index) => {
+                const isLast = index === path.length - 1;
+                const onclick = isLast ? '' : `onclick="navigateTo('${crumb.id}')"`;
+                const cls = isLast ? 'breadcrumb-item active' : 'breadcrumb-item';
+                return `<span class="${cls}" ${onclick}>${crumb.name}</span>` + (!isLast ? `<span class="breadcrumb-separator">/</span>` : '');
+            }).join('');
+        }
+
+        function render(forceRedraw = false) {
+            const items = getItems();
+            const container = document.getElementById('notes-container');
+            
+            renderBreadcrumbs();
+
+            let currentItems = currentFolderId === 'trash' ? items.filter(i => i.isTrashed) : items.filter(i => !i.isTrashed && (i.parentId || 'root') === currentFolderId);
+
+            currentItems.sort((a, b) => {
+                if (a.type === 'folder' && b.type !== 'folder') return -1;
+                if (a.type !== 'folder' && b.type === 'folder') return 1;
+                return b.updatedAt - a.updatedAt;
+            });
+
+            const checksum = currentView + '|' + currentItems.map(i => i.id + i.updatedAt + i.name).join(',');
+            if (!forceRedraw && checksum === lastRenderChecksum) return;
+            lastRenderChecksum = checksum;
+
+            container.innerHTML = ''; 
+
+            if (currentItems.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center mt-12" style="color: var(--text-muted)">Empty</div>`;
+                return;
+            }
+
+            currentItems.forEach(item => {
+                const el = document.createElement('div');
+                let buttonsHTML = '';
+                
+                // --- BUTTONS ---
+                if (item.isTrashed) {
+                    buttonsHTML = `<div class="card-actions"><button onclick="restoreItem(event, '${item.id}')" class="icon-btn btn-restore" title="Restore"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg></button><button onclick="deleteItem(event, '${item.id}')" class="icon-btn btn-delete" title="Delete Forever"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button></div>`;
+                } else {
+                    const renameBtn = item.type === 'folder' ? `<button onclick="renameItem(event, '${item.id}', '${item.name}')" class="icon-btn btn-edit" title="Rename"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg></button>` : '';
+                    buttonsHTML = `<div class="card-actions">${renameBtn}<button onclick="deleteItem(event, '${item.id}')" class="icon-btn btn-delete" title="Move to Trash"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg></button></div>`;
+                }
+
+                // --- FOLDER ---
+                if (item.type === 'folder') {
+                    const clickAction = item.isTrashed ? '' : `onclick="navigateTo('${item.id}')"`;
+                    const folderOpacity = item.isTrashed ? 'opacity-60' : '';
+                    el.innerHTML = `<div ${clickAction} class="card-base folder-card group ${folderOpacity}"><div class="flex items-center gap-2 flex-grow truncate pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 flex-shrink-0" style="color: var(--accent-icon)"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg><span class="font-medium truncate">${item.name}</span></div>${buttonsHTML}</div>`;
+                
+                // --- NOTE ---
+                } else {
+                    const lines = parseNoteContent(item.content);
+                    const title = lines.length > 0 ? lines[0] : 'Untitled Note';
+                    const preview = lines.length > 1 ? lines.slice(1).join(' ') : ''; 
+                    const clickAction = item.isTrashed ? '' : `onclick="window.location.href='editor.html?id=${item.id}'"`;
+                    const noteOpacity = item.isTrashed ? 'opacity-60' : '';
+
+                    el.innerHTML = `
+                        <div ${clickAction} class="card-base note-card group ${noteOpacity}">
+                            <div class="note-content-wrapper">
+                                <h3>${title}</h3>
+                                <p>${preview}</p>
+                            </div>
+                            <div class="card-date">
+                                ${formatDate(item.updatedAt)}
+                            </div>
+                            ${buttonsHTML}
+                        </div>
+                    `;
+                }
+                container.appendChild(el.firstElementChild);
+            });
+        }
+        
+        function formatDate(timestamp) { const diff = (new Date() - new Date(timestamp))/1000; if(diff<60)return 'Just now'; if(diff<3600)return Math.floor(diff/60)+'m ago'; if(diff<86400)return Math.floor(diff/3600)+'h ago'; return new Date(timestamp).toLocaleDateString(); }
+        function parseNoteContent(html) { const tmp = document.createElement("DIV"); tmp.innerHTML = html; const lines=[]; Array.from(tmp.childNodes).forEach(node=>{let text=node.textContent||node.innerText||""; text=text.replace(/\u00A0/g, " ").trim(); if(text.length>0)lines.push(text);}); return lines; }
+
+        function calculateStreak() {
+            const stats = JSON.parse(localStorage.getItem('brainlog_stats') || '{"daily":{}}');
+            const daily = stats.daily || {};
+            const goal = parseInt(localStorage.getItem('brainlog_daily_goal') || 0);
+
+            let streak = 0;
+            const toKey = (d) => d.toISOString().split('T')[0];
+            let d = new Date();
+            const checkSuccess = (count) => {
+                if (count === undefined) return false;
+                return goal > 0 ? count >= goal : count > 0;
+            };
+            if (checkSuccess(daily[toKey(d)])) {
+                streak++;
+            }
+            while (true) {
+                d.setDate(d.getDate() - 1); 
+                const key = toKey(d);
+                if (checkSuccess(daily[key])) {
+                    streak++;
+                } else {
+                    break;
+                }
+            }
+            return streak;
+        }
+
+        function renderStreak() {
+            const streak = calculateStreak();
+            const badge = document.getElementById('streak-badge');
+            const countEl = document.getElementById('streak-count');
+            const flame = badge.firstElementChild; 
+            countEl.textContent = streak;
+
+            if (streak > 0) {
+                countEl.className = "text-orange-600 dark:text-orange-400 font-bold";
+                flame.style.filter = "none";
+                flame.style.opacity = "1";
+                if (streak >= 7) badge.classList.add('animate-pulse');
+                else badge.classList.remove('animate-pulse');
+            } else {
+                countEl.className = "text-neutral-400 font-medium"; 
+                flame.style.filter = "grayscale(100%)"; 
+                flame.style.opacity = "0.5"; 
+                badge.classList.remove('animate-pulse');
+            }
+        }
+
+        // --- SEARCH ENGINE ---
+        const searchModal = document.getElementById('search-modal');
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+
+        window.toggleSearch = function() {
+            if (searchModal.classList.contains('hidden')) {
+                searchModal.classList.remove('hidden');
+                searchInput.value = '';
+                searchResults.innerHTML = '<div class="text-center py-8 text-sm opacity-50">Type to start searching...</div>';
+                setTimeout(() => searchInput.focus(), 50); 
+            } else {
+                searchModal.classList.add('hidden');
+            }
+        }
+
+        searchModal.addEventListener('click', (e) => {
+            if (e.target === searchModal) window.toggleSearch();
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const items = getItems().filter(i => !i.isTrashed); 
+            
+            if (!query) {
+                searchResults.innerHTML = '<div class="text-center py-8 text-sm opacity-50">Type to start searching...</div>';
+                return;
+            }
+
+            const matches = items.filter(item => {
+                if (item.type === 'folder') {
+                    return item.name.toLowerCase().includes(query);
+                }
+                const text = item.content.replace(/<[^>]*>?/gm, ' ').toLowerCase(); 
+                return text.includes(query);
+            });
+
+            renderSearchResults(matches, query);
+        });
+
+        function renderSearchResults(matches, query) {
+            if (matches.length === 0) {
+                searchResults.innerHTML = '<div class="text-center py-8 text-sm opacity-50">No matching notes found.</div>';
+                return;
+            }
+
+            searchResults.innerHTML = matches.map(item => {
+                let icon, title, snippet, action;
+
+                if (item.type === 'folder') {
+                    icon = `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>`;
+                    title = item.name;
+                    snippet = "Folder";
+                    action = `onclick="navigateTo('${item.id}'); toggleSearch()"`;
+                } else {
+                    icon = `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
+                    
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = item.content;
+                    const cleanText = tmp.innerText || "";
+                    const lines = cleanText.split('\n').filter(l => l.trim());
+                    
+                    title = lines[0] || "Untitled";
+                    const lowerText = cleanText.toLowerCase();
+                    const matchIndex = lowerText.indexOf(query);
+                    
+                    if (matchIndex > -1) {
+                        const start = Math.max(0, matchIndex - 20);
+                        const end = Math.min(cleanText.length, matchIndex + 60);
+                        snippet = (start > 0 ? "..." : "") + cleanText.substring(start, end) + "...";
+                    } else {
+                        snippet = lines.slice(1).join(' ').substring(0, 60);
+                    }
+                    action = `onclick="window.location.href='editor.html?id=${item.id}'"`;
+                }
+
+                return `
+                    <div ${action} class="search-result-item flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors" style="border-bottom: 1px solid var(--border-color)">
+                        <div class="flex-shrink-0">${icon}</div>
+                        <div class="flex-grow min-w-0">
+                            <div class="font-medium truncate text-sm">${highlightMatch(title, query)}</div>
+                            <div class="text-xs truncate opacity-60">${highlightMatch(snippet, query)}</div>
+                        </div>
+                        <div class="text-xs opacity-40 whitespace-nowrap">${formatDate(item.updatedAt)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function highlightMatch(text, query) {
+            if (!text) return "";
+            const regex = new RegExp(`(${query})`, 'gi');
+            return text.replace(regex, '<span class="text-blue-500 font-bold">$1</span>');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                toggleSearch();
+            }
+            if (e.key === 'Escape' && !searchModal.classList.contains('hidden')) {
+                toggleSearch();
+            }
+        });
+    </script>
+</body>
+</html> 

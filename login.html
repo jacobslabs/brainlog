@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Brainlog</title>
+    <link rel="stylesheet" href="./style.css" />
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; background-color: #0d0d0d; color: #e5e5e5; }</style>
+</head>
+<body class="flex items-center justify-center h-screen p-4">
+    <div class="w-full max-w-md bg-[#171717] p-8 rounded-lg shadow-xl border border-neutral-800">
+        <h1 class="text-2xl font-bold mb-6 text-center">Elegant Writer</h1>
+        
+        <input id="email" type="email" placeholder="Email" class="w-full bg-[#0d0d0d] border border-neutral-700 rounded p-3 mb-4 text-white focus:outline-none focus:border-neutral-500">
+        <input id="password" type="password" placeholder="Password" class="w-full bg-[#0d0d0d] border border-neutral-700 rounded p-3 mb-6 text-white focus:outline-none focus:border-neutral-500">
+        
+        <button id="btn-login" class="w-full bg-neutral-200 text-black font-semibold p-3 rounded hover:bg-white transition mb-3">Sign In</button>
+        <button id="btn-signup" class="w-full border border-neutral-600 text-neutral-400 font-semibold p-3 rounded hover:border-neutral-400 hover:text-white transition">Create Account</button>
+        
+        <p id="msg" class="text-center text-sm mt-4 text-red-400 min-h-[1.25rem]"></p>
+        <p class="text-center text-xs text-neutral-600 mt-4 cursor-pointer hover:text-neutral-400" onclick="window.location.href='index.html'">Continue as Guest (Offline)</p>
+    </div>
+
+    <script type="module">
+        import { auth } from './src/db.js';
+
+        const emailEl = document.getElementById('email');
+        const passEl = document.getElementById('password');
+        const msgEl = document.getElementById('msg');
+
+        document.getElementById('btn-login').addEventListener('click', async () => {
+            msgEl.textContent = 'Signing in...';
+            const { error } = await auth.signIn(emailEl.value, passEl.value);
+            if (error) msgEl.textContent = error.message;
+            else window.location.href = 'index.html';
+        });
+
+        document.getElementById('btn-signup').addEventListener('click', async () => {
+            msgEl.textContent = 'Creating account...';
+            const { error } = await auth.signUp(emailEl.value, passEl.value);
+            if (error) msgEl.textContent = error.message;
+            else msgEl.textContent = 'Check your email for the confirmation link!';
+        });
+    </script>
+</body>
+</html>

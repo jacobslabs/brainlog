@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistics - BrainLog</title>
+    <link rel="stylesheet" href="./style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- CSS VARIABLES FOR GRAPH --- */
+        :root {
+            --sq-empty: rgba(0,0,0, 0.05);
+            --sq-l1: #bbf7d0;
+            --sq-l2: #4ade80;
+            --sq-l3: #16a34a;
+            --sq-l4: #15803d;
+        }
+
+        [data-theme="dark"] {
+            /* Make empty squares LIGHTER so they stand out against the dark card */
+            --sq-empty: #2e2e2e; 
+            --sq-l1: #064e3b;
+            --sq-l2: #065f46;
+            --sq-l3: #10b981;
+            --sq-l4: #34d399;
+        }
+
+        /* --- HEATMAP STYLES --- */
+        .graph-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: max-content; /* Shrink to fit content */
+            min-width: 100%;
+        }
+
+        .months-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-left: 0; 
+            height: 15px;
+            width: 100%;
+        }
+
+        .month-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            width: 30px; 
+            text-align: center;
+        }
+
+        .heatmap-container {
+            display: inline-grid;
+            grid-template-rows: repeat(7, 10px); 
+            grid-auto-flow: column; 
+            gap: 3px;
+            padding: 2px; /* Give space for hover overflow */
+        }
+        
+        .day-sq {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            border: none;
+            background-color: var(--sq-empty); /* Use Variable */
+            position: relative; /* Fixes z-index issues */
+            transition: transform 0.1s ease-out;
+        }
+        
+        /* Contribution Levels */
+        .level-1 { background-color: var(--sq-l1); }
+        .level-2 { background-color: var(--sq-l2); }
+        .level-3 { background-color: var(--sq-l3); }
+        .level-4 { background-color: var(--sq-l4); }
+        
+        /* Hover Effect */
+        .day-sq:hover {
+            transform: scale(1.8); /* Make it pop more */
+            z-index: 50;
+            border: 1px solid var(--bg-card); /* Add border to distinguish overlap */
+            cursor: help;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+    <script>
+        // Immediate Theme Init
+        (function() {
+            const saved = localStorage.getItem('brainlog_theme');
+            const sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = (saved === 'system' || !saved) ? (sys ? 'dark' : 'light') : saved;
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+</head>
+<body class="flex flex-col items-center min-h-screen p-6 md:p-12">
+
+    <div class="w-full max-w-4xl">
+        
+        <div class="flex items-center gap-4 mb-8">
+            <a href="index.html" class="icon-btn p-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Back">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+            </a>
+            <h1 class="text-2xl font-bold tracking-tight">Writing Activity</h1>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="card-base p-4 flex flex-col items-center justify-center text-center">
+                <span class="text-xs text-neutral-500 uppercase tracking-wide font-medium">Today</span>
+                <span id="stat-today" class="text-3xl font-bold mt-1">0</span>
+                <span class="text-xs text-neutral-500">Words</span>
+            </div>
+            <div class="card-base p-4 flex flex-col items-center justify-center text-center">
+                <span class="text-xs text-neutral-500 uppercase tracking-wide font-medium">Current Streak</span>
+                <span id="stat-streak" class="text-3xl font-bold mt-1 text-orange-500">0</span>
+            </div>
+            <div class="card-base p-4 flex flex-col items-center justify-center text-center">
+                <span class="text-xs text-neutral-500 uppercase tracking-wide font-medium">Total Words</span>
+                <span id="stat-total" class="text-3xl font-bold mt-1">0</span>
+            </div>
+            <div class="card-base p-4 flex flex-col items-center justify-center text-center">
+                <span class="text-xs text-neutral-500 uppercase tracking-wide font-medium">Avg Speed</span>
+                <span id="stat-wpm" class="text-3xl font-bold mt-1" style="color: var(--accent-icon)">0</span>
+                <span class="text-xs text-neutral-500">WPM</span>
+            </div>
+        </div>
+
+        <div class="card-base p-6 mb-8">
+            <h2 class="text-sm font-semibold mb-6">Contribution History</h2>
+            
+            <div class="w-full overflow-x-auto pb-2">
+                <div class="graph-wrapper">
+                    <div id="months-row" class="months-row"></div>
+                    
+                    <div id="contribution-graph" class="heatmap-container"></div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 mt-4 text-xs text-neutral-500 justify-end">
+                <span>Less</span>
+                <div class="day-sq" style="width: 10px; height: 10px;"></div>
+                <div class="day-sq level-1" style="width: 10px; height: 10px;"></div>
+                <div class="day-sq level-2" style="width: 10px; height: 10px;"></div>
+                <div class="day-sq level-3" style="width: 10px; height: 10px;"></div>
+                <div class="day-sq level-4" style="width: 10px; height: 10px;"></div>
+                <span>More</span>
+            </div>
+        </div>
+
+        <div class="card-base p-6 border-red-200 dark:border-red-900/30">
+            <h2 class="text-sm font-semibold mb-2 text-red-500">Danger Zone</h2>
+            <p class="text-xs text-neutral-500 mb-4">This will permanently delete your writing history and streaks. Your notes will remain safe.</p>
+            <button onclick="clearStats()" class="px-4 py-2 text-sm border border-red-200 text-red-500 rounded hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+                Reset Statistics
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        const STATS_KEY = 'brainlog_stats';
+
+        function loadStats() {
+            const raw = localStorage.getItem(STATS_KEY);
+            const stats = raw ? JSON.parse(raw) : { daily: {}, totalWords: 0, wpmAvg: 0 };
+            const todayKey = new Date().toISOString().split('T')[0];
+            
+            // 1. Fill Summary Cards
+            document.getElementById('stat-today').textContent = stats.daily[todayKey] || 0;
+            document.getElementById('stat-total').textContent = stats.totalWords || 0;
+            document.getElementById('stat-wpm').textContent = Math.round(stats.wpmAvg || 0);
+            
+            // 2. Calculate Streak (With Goal Logic)
+            const streak = calculateStreak(stats.daily);
+            const streakEl = document.getElementById('stat-streak');
+            streakEl.textContent = streak + (streak === 1 ? ' day' : ' days');
+            
+            if (streak === 0) {
+                streakEl.classList.remove('text-orange-500');
+                streakEl.classList.add('text-neutral-400');
+            } else {
+                streakEl.classList.add('text-orange-500');
+                streakEl.classList.remove('text-neutral-400');
+            }
+
+            // 3. Generate Heatmap
+            generateHeatmap(stats.daily);
+        }
+
+        // UPDATED: Now respects Daily Goal like the Home Page
+        function calculateStreak(daily) {
+            // Get Goal (Default to 0 if not set)
+            const goal = parseInt(localStorage.getItem('brainlog_daily_goal') || 0);
+            let streak = 0;
+            
+            const toKey = (d) => d.toISOString().split('T')[0];
+            let d = new Date();
+            
+            // Helper: Did we succeed?
+            const checkSuccess = (count) => {
+                if (count === undefined) return false;
+                // If goal > 0, must meet goal. Else just need > 0.
+                return goal > 0 ? count >= goal : count > 0;
+            };
+
+            // Check today
+            if (checkSuccess(daily[toKey(d)])) streak++;
+            
+            // Loop backwards
+            while (true) {
+                d.setDate(d.getDate() - 1);
+                if (checkSuccess(daily[toKey(d)])) {
+                    streak++;
+                } else {
+                    break;
+                }
+            }
+            return streak;
+        }
+
+        function generateHeatmap(dailyData) {
+            const container = document.getElementById('contribution-graph');
+            const monthsContainer = document.getElementById('months-row');
+            
+            container.innerHTML = '';
+            monthsContainer.innerHTML = '';
+
+            const today = new Date();
+            const dates = [];
+            
+            // Generate last 365 days backwards
+            for (let i = 365; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                dates.push(d);
+            }
+
+            // 1. Render Squares
+            dates.forEach(date => {
+                const key = date.toISOString().split('T')[0];
+                const count = dailyData[key] || 0;
+                
+                const sq = document.createElement('div');
+                sq.className = 'day-sq';
+                
+                if (count > 0) sq.classList.add('level-1');
+                if (count > 200) sq.classList.add('level-2');
+                if (count > 500) sq.classList.add('level-3');
+                if (count > 1000) sq.classList.add('level-4');
+
+                // Tooltip
+                sq.title = `${date.toDateString()}: ${count} words`;
+                container.appendChild(sq);
+            });
+
+            // 2. Render Month Labels (Visual Approximation)
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            
+            // Create 12 slots for the timeline
+            for (let i = 0; i < 12; i++) {
+                const label = document.createElement('div');
+                label.className = 'month-label';
+                
+                // Calculate month for this slot (backwards from today)
+                const d = new Date();
+                d.setMonth(d.getMonth() - (11 - i));
+                
+                label.textContent = monthNames[d.getMonth()];
+                monthsContainer.appendChild(label);
+            }
+        }
+
+        function clearStats() {
+            if(confirm('Are you sure you want to reset all tracking stats? This cannot be undone.')) {
+                localStorage.removeItem(STATS_KEY);
+                location.reload();
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', loadStats);
+    </script>
+</body>
+</html>

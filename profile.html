@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - BrainLog</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
+    <link rel="stylesheet" href="./style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- LOCAL STYLES FOR SETTINGS PAGE --- */
+        body { background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s, color 0.3s; }
+        
+        .setting-group { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.5rem; overflow: hidden; margin-bottom: 1.5rem; }
+        .setting-item { padding: 1rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .setting-item:last-child { border-bottom: none; }
+        
+        .btn-secondary { background-color: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 500; transition: all 0.2s; }
+        .btn-secondary:hover { border-color: var(--text-muted); }
+
+        select, input {
+            background-color: var(--input-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            outline: none;
+        }
+    </style>
+    <script>
+        // Immediate Theme Init
+        (function() {
+            const saved = localStorage.getItem('brainlog_theme');
+            const sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = (saved === 'system' || !saved) ? (sys ? 'dark' : 'light') : saved;
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+</head>
+<body class="flex flex-col items-center min-h-screen p-6">
+
+    <div class="w-full max-w-2xl">
+        <div class="flex items-center gap-4 mb-8">
+            <a href="index.html" class="p-2 -ml-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-full transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5" style="color: var(--text-muted)">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+            </a>
+            <h1 class="text-2xl font-bold tracking-tight">Settings</h1>
+        </div>
+
+        <h2 class="text-xs font-semibold uppercase tracking-wider mb-2 ml-1" style="color: var(--text-muted)">Appearance</h2>
+        <div class="setting-group">
+            <div class="setting-item">
+                <div>
+                    <p class="text-sm font-medium">Theme</p>
+                    <p class="text-xs mt-0.5" style="color: var(--text-muted)">Choose your interface style.</p>
+                </div>
+                <select id="theme-selector">
+                    <option value="system">System Default</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <div>
+                    <p class="text-sm font-medium">Layout View</p>
+                    <p class="text-xs mt-0.5" style="color: var(--text-muted)">Choose how notes are displayed.</p>
+                </div>
+                <select id="view-selector">
+                    <option value="grid">Grid</option>
+                    <option value="list">List</option>
+                </select>
+            </div>
+        </div>
+
+        <h2 class="text-xs font-semibold uppercase tracking-wider mb-2 ml-1 mt-6" style="color: var(--text-muted)">Goals</h2>
+        <div class="setting-group">
+            <div class="setting-item">
+                <div>
+                    <p class="text-sm font-medium">Daily Word Target</p>
+                    <p class="text-xs mt-0.5" style="color: var(--text-muted)">Set to 0 to disable tracking.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="goal-input" min="0" step="50" class="w-20 text-right" placeholder="0">
+                    <span class="text-sm text-neutral-500">words</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="text-xs font-semibold uppercase tracking-wider mb-2 ml-1 mt-6" style="color: var(--text-muted)">Activity</h2>
+        <div class="setting-group">
+            <a href="stats.html" class="setting-item hover:bg-neutral-500/5 transition-colors cursor-pointer">
+                <div>
+                    <p class="text-sm font-medium">Writing Statistics</p>
+                    <p class="text-xs mt-0.5" style="color: var(--text-muted)">View word counts and typing speed.</p>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5" style="color: var(--text-muted)">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+            </a>
+        </div>
+
+        <h2 class="text-xs font-semibold uppercase tracking-wider mb-2 ml-1 mt-6" style="color: var(--text-muted)">Data Management</h2>
+        <div class="setting-group">
+            <div class="setting-item">
+                <div>
+                    <p class="text-sm font-medium">Export Local Data</p>
+                    <p class="text-xs mt-0.5" style="color: var(--text-muted)">Download a JSON backup of your localStorage.</p>
+                </div>
+                <button id="btn-export" class="btn-secondary">Export JSON</button>
+            </div>
+        </div>
+
+        <h2 class="text-xs font-semibold uppercase tracking-wider mb-2 ml-1 mt-6" style="color: var(--text-muted)">Account</h2>
+        <div class="setting-group" id="account-section">
+            <div class="p-4 text-center text-sm text-muted">Loading...</div>
+        </div>
+
+        <div class="setting-group mt-6" id="action-section" style="border-color: rgba(248, 113, 113, 0.3);">
+            </div>
+    </div>
+
+    <script type="module">
+        import { auth, db } from './src/db.js';
+
+        // --- 1. LOCAL PREFERENCES ---
+        
+        // Theme
+        const themeSelect = document.getElementById('theme-selector');
+        themeSelect.value = localStorage.getItem('brainlog_theme') || 'system';
+        themeSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            localStorage.setItem('brainlog_theme', val);
+            const sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const apply = val === 'system' ? (sys ? 'dark' : 'light') : val;
+            document.documentElement.setAttribute('data-theme', apply);
+            db.updateProfile(); // Sync change
+        });
+
+        // View Mode
+        const viewSelect = document.getElementById('view-selector');
+        viewSelect.value = localStorage.getItem('elegant_writer_view_pref') || 'grid';
+        viewSelect.addEventListener('change', (e) => {
+            localStorage.setItem('elegant_writer_view_pref', e.target.value);
+            db.updateProfile(); // Sync change
+        });
+
+        // Goals
+        const goalInput = document.getElementById('goal-input');
+        goalInput.value = localStorage.getItem('brainlog_daily_goal') || 0;
+        goalInput.addEventListener('change', (e) => {
+            localStorage.setItem('brainlog_daily_goal', parseInt(e.target.value) || 0);
+            db.updateProfile(); // Sync change
+        });
+
+        // Export
+        document.getElementById('btn-export').addEventListener('click', () => {
+            const data = localStorage.getItem('elegant_writer_notes');
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `brainlog-backup-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // --- 2. AUTH STATE UI ---
+        async function init() {
+            const accountEl = document.getElementById('account-section');
+            const actionEl = document.getElementById('action-section');
+            
+            const user = await auth.getUser();
+
+            if (user) {
+                // LOGGED IN VIEW
+                accountEl.innerHTML = `
+                    <div class="setting-item">
+                        <div>
+                            <p class="text-sm font-medium">Email Address</p>
+                            <p class="text-xs mt-0.5" style="color: var(--text-muted)">${user.email}</p>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div>
+                            <p class="text-sm font-medium">Cloud Sync</p>
+                            <p class="text-xs mt-0.5" style="color: var(--text-muted)">Your notes are backed up to Cloud.</p>
+                        </div>
+                        <div class="flex items-center gap-2 text-green-500 text-xs font-medium">
+                            <span class="relative flex h-2 w-2">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            Active
+                        </div>
+                    </div>
+                `;
+
+                actionEl.innerHTML = `
+                    <div class="setting-item cursor-pointer hover:bg-red-500/5 transition-colors" id="btn-logout">
+                        <div>
+                            <p class="text-sm font-medium text-red-400">Log Out</p>
+                            <p class="text-xs mt-0.5" style="color: var(--text-muted)">Sign out of this device.</p>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-red-400">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                        </svg>
+                    </div>
+                `;
+                
+                // --- CRITICAL CHANGE: Safe Logout Listener ---
+                document.getElementById('btn-logout').addEventListener('click', async () => {
+                    const btn = document.getElementById('btn-logout');
+                    
+                    // 1. Show Visual Feedback (Spinner)
+                    btn.innerHTML = `
+                        <div class="flex items-center gap-2 text-red-500 w-full justify-center py-2">
+                            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="text-sm font-medium">Syncing & Logging out...</span>
+                        </div>
+                    `;
+                    
+                    // 2. Perform Safe Logout (Backup -> Wipe -> Redirect)
+                    await db.logout(); 
+                });
+
+            } else {
+                // GUEST VIEW
+                accountEl.innerHTML = `
+                    <div class="setting-item">
+                        <div>
+                            <p class="text-sm font-medium">Guest Mode</p>
+                            <p class="text-xs mt-0.5" style="color: var(--text-muted)">Notes are stored locally on this device.</p>
+                        </div>
+                        <div class="text-xs px-2 py-1 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500">Local Only</div>
+                    </div>
+                `;
+
+                actionEl.style.borderColor = 'rgba(59, 130, 246, 0.3)'; // Blue border for Login
+                actionEl.innerHTML = `
+                    <a href="login.html" class="setting-item cursor-pointer hover:bg-blue-500/5 transition-colors">
+                        <div>
+                            <p class="text-sm font-medium text-blue-500">Log In / Sign Up</p>
+                            <p class="text-xs mt-0.5" style="color: var(--text-muted)">Sync your notes across devices.</p>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-blue-500">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                        </svg>
+                    </a>
+                `;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
