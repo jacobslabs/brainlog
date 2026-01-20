@@ -7,7 +7,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        editor: resolve(__dirname, 'editor.html'),
+        note: resolve(__dirname, 'note.html'),
         login: resolve(__dirname, 'login.html'),
         stats: resolve(__dirname, 'stats.html'),
         profile: resolve(__dirname, 'profile.html'),

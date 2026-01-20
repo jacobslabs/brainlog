@@ -159,7 +159,7 @@
             await db.pushItem(newNote); 
             
             // 3. Navigate
-            window.location.href = `editor.html?id=${newId}`;
+            window.location.href = `note.html?id=${newId}`;
         }
 
         window.openModal = function(mode, targetId = null, currentName = '') {
@@ -365,7 +365,7 @@
                     const lines = parseNoteContent(item.content);
                     const title = lines.length > 0 ? lines[0] : 'Untitled Note';
                     const preview = lines.length > 1 ? lines.slice(1).join(' ') : ''; 
-                    const clickAction = item.isTrashed ? '' : `onclick="window.location.href='editor.html?id=${item.id}'"`;
+                    const clickAction = item.isTrashed ? '' : `onclick="window.location.href='note.html?id=${item.id}'"`;
                     const noteOpacity = item.isTrashed ? 'opacity-60' : '';
 
                     el.innerHTML = `
@@ -509,7 +509,7 @@
                     } else {
                         snippet = lines.slice(1).join(' ').substring(0, 60);
                     }
-                    action = `onclick="window.location.href='editor.html?id=${item.id}'"`;
+                    action = `onclick="window.location.href='note.html?id=${item.id}'"`;
                 }
 
                 return `
