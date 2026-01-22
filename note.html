@@ -4,25 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Editor - BrainLog</title>
-    <link rel="stylesheet" href="./style.css?v=2" />
+    <link rel="stylesheet" href="./style.css?v=7" />
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     
     <style>
+        /* FIX: Changed origin to bottom-right for natural "open left" feel */
         .popover-menu {
             transform-origin: bottom right;
-            transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease-out;
         }
+        
         .popover-hidden {
             transform: scale(0.95) translateY(10px);
             opacity: 0;
             pointer-events: none;
         }
+        
         .popover-visible {
             transform: scale(1) translateY(0);
             opacity: 1;
             pointer-events: auto;
+        }
+        
+        /* Specific override for center-aligned stats bubble */
+        .popover-center {
+            transform-origin: bottom center;
+        }
+        .popover-center.popover-hidden {
+            transform: translateX(-50%) scale(0.95) translateY(10px);
+        }
+        .popover-center.popover-visible {
+            transform: translateX(-50%) scale(1) translateY(0);
         }
     </style>
 
@@ -35,11 +49,11 @@
         })();
     </script>
 </head>
-<body class="flex flex-col items-center justify-center h-screen overflow-hidden mode-paragraph bg-body text-main">
+<body class="flex flex-col items-center justify-center h-[100dvh] overflow-hidden mode-paragraph bg-body text-main">
 
-    <div class="w-full max-w-5xl shadow-xl rounded-lg flex flex-col h-full md:h-[90vh] md:my-6 editor-container relative">
+    <div class="w-full max-w-5xl flex flex-col h-full md:h-[90vh] md:my-6 editor-container relative">
         
-        <div id="editor-wrapper" class="flex-grow overflow-y-auto px-6 md:px-32 md:pt-12 relative">
+        <div id="editor-wrapper" class="flex-grow overflow-y-auto px-6 md:px-32 md:pt-12 pb-48 relative">
             <div id="focus-overlay"></div>
             <div id="editable-area" 
                  class="max-w-2xl mx-auto"
@@ -49,53 +63,61 @@
             </div>
         </div>
 
-        <div id="app-footer" class="w-full px-4 py-3 flex justify-between items-center text-sm z-30 relative bg-card border-t border-border">
+        <div id="app-footer" 
+             class="fixed bottom-0 left-0 w-full z-50 bg-card border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.1)] flex justify-center items-start pt-3"
+             style="padding-bottom: calc(2rem + env(safe-area-inset-bottom));">
             
-            <div id="daily-progress-container" title="Daily Goal Progress">
+            <div id="daily-progress-container" title="Daily Goal Progress" class="absolute top-0 left-0 w-full h-[2px]">
                 <div id="daily-progress-bar"></div>
             </div>
 
-            <a id="back-btn" href="index.html" class="footer-btn p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Back to Notes">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-muted">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                </svg>
-            </a>
-
-            <div class="flex items-center gap-2">
-                <div id="save-indicator" class="mr-1"></div>
-                <span id="word-count" class="font-medium text-xs text-muted tabular-nums">0 words</span>
-                <button id="stats-info-btn" class="text-muted hover:text-main transition-colors p-1 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+            <div class="flex items-center gap-8 h-10 relative">
+                
+                <a id="back-btn" href="index.html" class="footer-btn p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors h-10 w-10 flex items-center justify-center" title="Back to Notes">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-muted">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                </button>
-                <div id="stats-popover" class="popover-hidden absolute bottom-16 left-1/2 -translate-x-1/2 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black px-4 py-2 rounded-lg shadow-xl text-xs z-50 whitespace-nowrap popover-menu">
-                    <div id="sentence-count">0 sentences</div>
-                    <div id="read-time" class="opacity-70 mt-1">0 min read</div>
-                    <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-neutral-900 dark:bg-neutral-100 rotate-45"></div>
+                </a>
+
+                <div class="flex items-center gap-2 h-10 relative">
+                    <div id="save-indicator" class="mr-1"></div>
+                    <span id="word-count" class="font-medium text-xs text-muted tabular-nums">0 words</span>
+                    <button id="stats-info-btn" class="text-muted hover:text-main transition-colors p-1 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                        </svg>
+                    </button>
+                    
+                    <div id="stats-popover" class="popover-hidden popover-center absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black px-4 py-2 rounded-lg shadow-xl text-xs z-50 whitespace-nowrap popover-menu">
+                        <div id="sentence-count">0 sentences</div>
+                        <div id="read-time" class="opacity-70 mt-1">0 min read</div>
+                        <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-neutral-900 dark:bg-neutral-100 rotate-45"></div>
+                    </div>
                 </div>
-            </div>
 
-            <button id="editor-menu-toggle" class="footer-btn p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-muted">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                </svg>
-            </button>
+                <div class="relative">
+                    <button id="editor-menu-toggle" class="footer-btn p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors h-10 w-10 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-muted">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                        </svg>
+                    </button>
 
-            <div id="editor-menu" class="popover-hidden absolute bottom-16 right-4 w-48 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden popover-menu">
-                <div class="flex flex-col py-1">
-                    <button id="toggle-mode-btn" class="text-left px-4 py-3 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        <span id="mode-text">Focus Mode</span>
-                    </button>
-                    <button id="download-markdown-btn" class="text-left px-4 py-3 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-3 border-t border-border">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                        <span>Download MD</span>
-                    </button>
-                    <button id="zen-mode-btn" class="text-left px-4 py-3 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-3 border-t border-border">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-                        <span>Zen Mode</span>
-                    </button>
+                    <div id="editor-menu" class="popover-hidden absolute bottom-full mb-4 right-0 w-48 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden popover-menu origin-bottom-right">
+                        <div class="flex flex-col py-1">
+                            <button id="toggle-mode-btn" class="text-left px-4 py-3 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-3 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-muted"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                <span id="mode-text">Focus Mode</span>
+                            </button>
+                            <button id="download-markdown-btn" class="text-left px-4 py-3 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-3 border-t border-border transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                                <span>Download MD</span>
+                            </button>
+                            <button id="zen-mode-btn" class="text-left px-4 py-3 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-3 border-t border-border transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+                                <span>Zen Mode</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -126,7 +148,6 @@
         const KEY_MODE = 'elegant_writer_mode';
         const STATS_KEY = 'brainlog_stats';
         
-        // --- STATE VARIABLES ---
         let saveTimeout;
         let visualTimeout;
         const SAVE_DELAY = 1000;
@@ -140,7 +161,6 @@
         let isAutoScrolling = false;
         let scrollTimeout;
 
-        // Stats State
         let sessionStart = null;
         let lastKeyTime = null;
         let sessionKeys = 0;
@@ -149,15 +169,11 @@
         // --- MENU LOGIC ---
         function toggleElement(el) {
             if (el.classList.contains('popover-hidden')) {
-                editorMenu.classList.add('popover-hidden');
-                editorMenu.classList.remove('popover-visible');
-                statsPopover.classList.add('popover-hidden');
-                statsPopover.classList.remove('popover-visible');
-                el.classList.remove('popover-hidden');
-                el.classList.add('popover-visible');
+                editorMenu.classList.add('popover-hidden'); editorMenu.classList.remove('popover-visible');
+                statsPopover.classList.add('popover-hidden'); statsPopover.classList.remove('popover-visible');
+                el.classList.remove('popover-hidden'); el.classList.add('popover-visible');
             } else {
-                el.classList.add('popover-hidden');
-                el.classList.remove('popover-visible');
+                el.classList.add('popover-hidden'); el.classList.remove('popover-visible');
             }
         }
 
@@ -169,6 +185,7 @@
             if (!statsPopover.contains(e.target)) { statsPopover.classList.add('popover-hidden'); statsPopover.classList.remove('popover-visible'); }
         });
 
+        // --- CORE FUNCTIONS ---
         function getNotes() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
 
         function initStats() {
