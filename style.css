@@ -38,11 +38,33 @@
 }
 
 html { scrollbar-gutter: stable; }
+
+/* FIX: Global word wrapping and box sizing hardening */
+* {
+    min-width: 0; /* Prevents flex items from overflowing */
+    box-sizing: border-box;
+}
+
 body { 
     font-family: 'Inter', sans-serif; 
     background-color: var(--bg-body); 
     color: var(--text-main);
     transition: background-color 0.3s ease, color 0.3s ease;
+    /* FIX: Prevent horizontal scroll globally */
+    overflow-x: hidden; 
+}
+
+/* --- Utilities for Breadcrumbs --- */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.mask-linear-right {
+    mask-image: linear-gradient(to right, black 90%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
 }
 
 /* --- Card Styles --- */
@@ -62,6 +84,7 @@ body {
     position: absolute; top: 0.75rem; right: 0.75rem; display: flex; gap: 0.5rem;
     opacity: 0; transition: all 0.2s; z-index: 10;
 }
+/* On mobile, show actions on active/focus/always if needed, but hover is fine for touch tap usually */
 .card-base:hover .card-actions { opacity: 1; }
 
 .icon-btn { 
@@ -117,7 +140,7 @@ body {
     color: var(--text-muted);
 }
 
-/* 2. LIST VIEW */
+/* 2. LIST VIEW - MOBILE OPTIMIZED */
 .notes-container.list-view { 
     display: flex; 
     flex-direction: column; 
@@ -126,7 +149,7 @@ body {
 
 .notes-container.list-view .note-card { 
     height: 3.5rem; 
-    padding: 0 1.5rem; 
+    padding: 0 1rem; /* Reduced padding for mobile */
     display: flex; 
     align-items: center; 
     justify-content: space-between; 
@@ -136,27 +159,36 @@ body {
 .notes-container.list-view .note-content-wrapper { 
     display: flex; 
     align-items: center; 
-    gap: 1.5rem; 
+    gap: 1rem; 
     flex-grow: 1; 
     overflow: hidden; 
-    margin-right: 1rem; 
-    pointer-events: none; /* FIX: Prevents hover flicker */
+    margin-right: 0.5rem; 
+    pointer-events: none; 
 }
 
-.notes-container.list-view h3 { margin: 0; width: 25%; flex-shrink: 0; font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.notes-container.list-view p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: 0.875rem; }
+/* Mobile: Title takes full space */
+.notes-container.list-view h3 { margin: 0; flex-grow: 1; font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Hide preview text on mobile */
+.notes-container.list-view p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: 0.875rem; display: none; }
+@media(min-width: 640px) {
+    .notes-container.list-view h3 { width: 25%; flex-grow: 0; }
+    .notes-container.list-view p { display: block; }
+}
+
 .notes-container.list-view .card-date { width: 6rem; text-align: right; flex-shrink: 0; font-size: 0.75rem; color: var(--text-muted); pointer-events: none; }
+
+/* Hide Date on extremely small screens */
+@media(max-width: 380px) {
+    .notes-container.list-view .card-date { display: none; }
+}
 
 .notes-container.list-view .card-actions { margin-left: 1rem; opacity: 0; transition: opacity 0.2s; }
 .notes-container.list-view .note-card:hover .card-actions { opacity: 1; }
 
-@media (max-width: 640px) {
-    .notes-container.list-view p { display: none; }
-    .notes-container.list-view h3 { width: auto; flex-grow: 1; }
-}
 
 /* --- UI Utilities --- */
-.breadcrumb-item { cursor: pointer; color: var(--text-muted); transition: color 0.2s; }
+.breadcrumb-item { cursor: pointer; color: var(--text-muted); transition: color 0.2s; white-space: nowrap; }
 .breadcrumb-item:hover { color: var(--text-main); }
 .breadcrumb-item.active { color: var(--breadcrumb-active); font-weight: 600; cursor: default; }
 .breadcrumb-separator { color: var(--text-muted); margin: 0 0.5rem; }
@@ -164,8 +196,8 @@ body {
 .control-group { display: flex; background-color: var(--bg-card); padding: 0.25rem; border-radius: 0.5rem; border: 1px solid var(--border-color); gap: 0.25rem; }
 
 .view-btn, .trash-btn, .profile-btn {
-    height: 2.75rem; /* Fixed height for alignment */
-    min-width: 2.75rem; /* Ensure square icon buttons */
+    height: 2.75rem; 
+    min-width: 2.75rem; 
     display: flex; 
     align-items: center; 
     justify-content: center;
@@ -182,19 +214,19 @@ body {
     box-shadow: var(--shadow-hover);
 }
 .view-btn, .trash-btn {
-    border-radius: 0.5rem; /* Rounded Square */
-    padding: 0 0.5rem; /* Padding for buttons with text (like streak) */
+    border-radius: 0.5rem; 
+    padding: 0 0.5rem; 
 }
 
 .view-btn.active { 
-    background-color: var(--bg-body); /* Inset feel for active view */
+    background-color: var(--bg-body); 
     color: var(--text-main); 
     font-weight: 600; 
     border-color: var(--text-muted);
 }
 
 .trash-btn:hover { 
-    color: #ef4444; /* Keep red hover text for trash specifically */
+    color: #ef4444; 
     border-color: #ef4444;
 }
 .trash-btn.active { 
@@ -204,7 +236,7 @@ body {
 
 .profile-btn {
     border-radius: 9999px; /* Circular */
-    margin-left: 0.75rem;
+    margin-left: 0.5rem; /* Reduced margin */
     padding: 0;
 }
 
@@ -232,7 +264,7 @@ body {
 }
 
 /* ==========================================================================
-   EDITOR SPECIFIC STYLES (RESTORED)
+   EDITOR SPECIFIC STYLES (MOBILE HARDENED)
    ========================================================================== */
 
 /* 1. Editor Variables */
@@ -250,6 +282,9 @@ body {
     background-color: var(--bg-editor);
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
     transition: background-color 0.3s ease;
+    /* FIX: Ensure editor stays within screen width */
+    max-width: 100vw;
+    overflow-x: hidden;
 }
 
 #editor-wrapper {
@@ -272,20 +307,19 @@ body {
 #editable-area {
     outline: none;
     min-height: 100%;
-    padding-top: 50vh; 
-    padding-bottom: 90vh; 
+    /* FIX: reduced vertical padding on mobile so content is visible sooner */
+    padding-top: 20vh; 
+    padding-bottom: 50vh; 
+    
+    /* FIX: Force wrapping to prevent horizontal scroll */
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
 }
 
-#editable-area:empty::before,
-#editable-area > div:first-child:empty::before {
-    content: attr(data-placeholder);
-    color: var(--text-muted);
-    pointer-events: none;
-    float: left;
-    height: 0;
-}
+/* ... (Keep existing Focus/Spotlight/Save styles) ... */
 
-/* 3. Footer & Buttons */
 #app-footer {
     background-color: var(--bg-editor);
     border-top: 1px solid var(--border-color);
@@ -299,6 +333,7 @@ body {
     transition: all 0.2s;
 }
 .footer-btn:hover { background-color: var(--border-color); color: var(--text-main); }
+
 
 /* 4. Focus / Spotlight Mode Logic */
 #focus-overlay {
@@ -452,4 +487,16 @@ body.zen-mode #icon-exit-zen { display: block; }
 /* Ensure modal is above everything */
 #search-modal {
     z-index: 100;
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .safe-area-pb {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .pb-safe {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mb-safe {
+        margin-bottom: env(safe-area-inset-bottom);
+    }
 }
