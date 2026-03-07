@@ -30,6 +30,11 @@ export default function HomePage() {
         else setCurrentFolderId('root')
     }, [folderParam])
 
+    useEffect(() => {
+        window.addEventListener('notes-synced', refresh)
+        return () => window.removeEventListener('notes-synced', refresh)
+    }, [refresh])
+
     const navigateTo = useCallback((folderId) => {
         setCurrentFolderId(folderId)
         if (folderId === 'root') setSearchParams({})

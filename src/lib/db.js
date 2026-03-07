@@ -40,6 +40,7 @@ export const db = {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(mergedMap.values())))
 
         await this.syncProfile(user.id)
+        window.dispatchEvent(new Event('notes-synced'))
         return true
     },
 
