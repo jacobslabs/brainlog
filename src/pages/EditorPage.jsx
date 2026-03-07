@@ -47,7 +47,8 @@ export default function EditorPage() {
             if (note.parentId) setBackHref(`/?folder=${note.parentId}`)
             renderStatus('saved')
         } else {
-            editableRef.current.innerHTML = '<div><br></div>'
+            // Setup blank structural height using br so native browser selection jumps into it properly immediately.
+            editableRef.current.innerHTML = '<span class="active-sentence first-sentence" data-empty="true">&#8203;</span>'
         }
 
         ensureStructure()
@@ -123,7 +124,10 @@ export default function EditorPage() {
     function ensureStructure() {
         const el = editableRef.current
         if (!el) return
-        if (!el.firstChild || el.innerHTML.trim() === '') el.innerHTML = '<div><br></div>'
+        if (!el.firstChild || el.innerHTML.replace(/\u200B/g, '').trim() === '') {
+            // For zero-content states, contentEditable needs a br or structural height to click into.
+            el.innerHTML = '<span class="active-sentence first-sentence" data-empty="true">&#8203;</span>'
+        }
     }
 
     function queueSave() {
@@ -186,35 +190,259 @@ export default function EditorPage() {
     function updateFocus() {
         const wrapper = wrapperRef.current
         const editable = editableRef.current
-        const overlay = overlayRef.current
         if (!wrapper || !editable) return
         const selection = window.getSelection()
         if (!selection.rangeCount) return
 
         let node = selection.anchorNode
-        while (node && node.parentNode !== editable) node = node.parentNode
+        while (node && node.parentNode !== editable && node.parentNode !== document.body) {
+            node = node.parentNode
+        }
 
-        if (currentModeRef.current === 'paragraph') {
-            if (node && node.nodeName === 'DIV') {
-                if (activeBlockRef.current !== node) {
-                    activeBlockRef.current?.classList.remove('active-block')
-                    node.classList.add('active-block')
-                    activeBlockRef.current = node
+        if (currentModeRef.current === 'spotlight') {
+            applySentenceFocus(editable)
+        } else {
+            // Remove any sentence spans if we switch back to paragraph
+            const spans = editable.querySelectorAll('span.active-sentence, span.inactive-sentence')
+            if (spans.length > 0) {
+                const savedCursor = saveCursor(editable)
+                spans.forEach(span => {
+                    const parent = span.parentNode
+                    while (span.firstChild) parent.insertBefore(span.firstChild, span)
+                    parent.removeChild(span)
+                })
+                restoreCursor(editable, savedCursor)
+            }
+        }
+    }
+
+    function saveCursor(root) {
+        const selection = window.getSelection()
+        if (selection.rangeCount === 0) return 0
+        const range = selection.getRangeAt(0)
+
+        const nodes = []
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL, null, false)
+        let n = walker.nextNode()
+        while (n) {
+            if (n.nodeType === 3 || n.nodeName === 'BR') nodes.push(n)
+            n = walker.nextNode()
+        }
+
+        let charIndex = 0
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i]
+            const nodeRange = document.createRange()
+            if (node.nodeType === 3) nodeRange.setStart(node, 0)
+            else nodeRange.setStartBefore(node)
+
+            if (range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0) {
+                break
+            }
+
+            if (node === range.startContainer && node.nodeType === 3) {
+                const preCursorText = node.nodeValue.substring(0, range.startOffset)
+                charIndex += preCursorText.replace(/\u200B/g, '').length
+                break
+            }
+
+            if (node.nodeType === 3) {
+                charIndex += node.nodeValue.replace(/\u200B/g, '').length
+            } else if (node.nodeName === 'BR') {
+                charIndex += 1
+            }
+        }
+        return charIndex
+    }
+
+    function restoreCursor(root, offset) {
+        const selection = window.getSelection()
+        const range = document.createRange()
+        range.setStart(root, 0)
+        range.collapse(true)
+
+        const nodes = []
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL, null, false)
+        let n = walker.nextNode()
+        while (n) {
+            if (n.nodeType === 3 || n.nodeName === 'BR') nodes.push(n)
+            n = walker.nextNode()
+        }
+
+        let charIndex = 0
+        let found = false
+        let lastNode = null
+
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i]
+
+            if (node.nodeType === 3) {
+                const len = node.nodeValue.replace(/\u200B/g, '').length
+
+                if (offset < charIndex + len || (offset === charIndex + len && i === nodes.length - 1)) {
+                    let innerOffset = offset - charIndex
+
+                    // Identify how many ZWS characters exist before our target logical index
+                    // to adjust the exact native DOM string index
+                    let logicalCount = 0
+                    let nativeIndex = 0
+                    for (; nativeIndex < node.nodeValue.length; nativeIndex++) {
+                        if (logicalCount === innerOffset) break
+                        if (node.nodeValue.charCodeAt(nativeIndex) !== 8203) logicalCount++
+                    }
+                    // If target was precisely at end, advance past any trailing ZWS (though they usually stand prefix)
+                    while (nativeIndex < node.nodeValue.length && node.nodeValue.charCodeAt(nativeIndex) === 8203) {
+                        nativeIndex++
+                    }
+
+                    range.setStart(node, nativeIndex)
+                    found = true
+                    break
                 }
+                charIndex += len
+            } else if (node.nodeName === 'BR') {
+                if (offset === charIndex) {
+                    range.setStartBefore(node)
+                    found = true
+                    break
+                }
+                charIndex += 1
+            }
+            lastNode = node
+        }
+
+        if (!found && lastNode) {
+            if (lastNode.nodeType === 3) {
+                range.setStart(lastNode, lastNode.nodeValue.length)
+            } else {
+                range.setStartAfter(lastNode)
             }
         }
 
-        if (currentModeRef.current === 'spotlight' && overlay) {
-            const range = selection.getRangeAt(0)
-            const rect = range.getBoundingClientRect()
-            let top = rect.top, bottom = rect.bottom
-            if (rect.height === 0 && node) { const pr = node.getBoundingClientRect(); top = pr.top; bottom = pr.bottom }
-            const wRect = wrapper.getBoundingClientRect()
-            const relTop = top - wRect.top + wrapper.scrollTop
-            const relBottom = bottom - wRect.top + wrapper.scrollTop
-            overlay.style.setProperty('--focus-top', `${relTop - 8}px`)
-            overlay.style.setProperty('--focus-bottom', `${relBottom + 8}px`)
+        selection.removeAllRanges()
+        selection.addRange(range)
+    }
+
+    function applySentenceFocus(editable) {
+        // Only apply if user isn't actively making a selection drag
+        const selection = window.getSelection()
+        if (!selection.isCollapsed) return
+
+        const offset = saveCursor(editable)
+        let text = ''
+        function extractText(node) {
+            if (node.nodeType === 3) {
+                text += node.nodeValue
+            } else if (node.nodeName === 'BR') {
+                text += '\n'
+            } else if (node.nodeName === 'DIV' || node.nodeName === 'P') {
+                text += '\n'
+                for (let i = 0; i < node.childNodes.length; i++) extractText(node.childNodes[i])
+            } else {
+                for (let i = 0; i < node.childNodes.length; i++) extractText(node.childNodes[i])
+            }
         }
+        extractText(editable)
+
+        const regex = /[^.!?\n]+[.!?\n]+/g
+        let match
+        const boundaries = []
+        let lastIdx = 0
+        while ((match = regex.exec(text)) !== null) {
+            boundaries.push({ start: match.index, end: match.index + match[0].length })
+            lastIdx = match.index + match[0].length
+        }
+        if (lastIdx < text.length) boundaries.push({ start: lastIdx, end: text.length })
+
+        let activeIndex = -1
+        let isAtBoundaryEnd = false
+        for (let i = 0; i < boundaries.length; i++) {
+            if (offset >= boundaries[i].start && offset < boundaries[i].end) {
+                activeIndex = i
+                break
+            }
+            if (offset === boundaries[i].end) {
+                const boundaryStr = text.substring(boundaries[i].start, boundaries[i].end)
+                if (/[.!?\n]$/.test(boundaryStr)) {
+                    isAtBoundaryEnd = true
+                    activeIndex = i + 1
+                } else {
+                    activeIndex = i
+                }
+            }
+        }
+        if (activeIndex === -1 && boundaries.length > 0) activeIndex = boundaries.length - 1
+        if (activeIndex >= boundaries.length && isAtBoundaryEnd) {
+            boundaries.push({ start: text.length, end: text.length })
+            activeIndex = boundaries.length - 1
+        }
+
+        // --- Fast Path DOM class updater ---
+        // Avoid destroying innerHTML and losing native selection if structure hasn't fundamentally changed.
+        const currentSpans = Array.from(editable.querySelectorAll('span.active-sentence, span.inactive-sentence'))
+        const hasDivs = editable.querySelector('div, p') !== null
+        const rawEmpty = text.replace(/[\n\u200B]/g, '').trim().length === 0
+
+        if (!hasDivs && currentSpans.length === boundaries.length) {
+            for (let i = 0; i < boundaries.length; i++) {
+                const span = currentSpans[i]
+                const isFirst = i === 0 ? ' first-sentence' : ''
+                span.className = (i === activeIndex ? 'active-sentence' : 'inactive-sentence') + isFirst
+                if (rawEmpty && i === 0) span.setAttribute('data-empty', 'true')
+                else span.removeAttribute('data-empty')
+            }
+            return
+        }
+        // --- End Fast Path ---
+
+        let html = ''
+        for (let i = 0; i < boundaries.length; i++) {
+            const b = boundaries[i]
+            let sentenceText = text.substring(b.start, b.end)
+
+            // Clean zero-width spaces that might have snuck into extraction
+            sentenceText = sentenceText.replace(/\u200B/g, '')
+
+            const isFirst = i === 0 ? ' first-sentence' : ''
+            const isEmpty = text.replace(/[\n\u200B]/g, '').trim().length === 0 ? ' data-empty="true"' : ''
+
+            if (sentenceText.length > 0) {
+                let textContent = sentenceText
+                let trailingBr = ''
+
+                const trailingMatch = textContent.match(/\n+$/)
+                if (trailingMatch) {
+                    textContent = textContent.substring(0, textContent.length - trailingMatch[0].length)
+                    trailingBr = '<br>'.repeat(trailingMatch[0].length)
+                }
+
+                const leadingMatch = textContent.match(/^\n+/)
+                let leadingBr = ''
+                if (leadingMatch) {
+                    textContent = textContent.substring(leadingMatch[0].length)
+                    leadingBr = '<br>'.repeat(leadingMatch[0].length)
+                }
+
+                html += leadingBr
+                if (textContent.length > 0) {
+                    html += `<span class="${i === activeIndex ? 'active-sentence' : 'inactive-sentence'}${isFirst}"${isEmpty}>${textContent}</span>`
+                } else if (i === activeIndex) {
+                    html += `<span class="active-sentence${isFirst}"${isEmpty}>&#8203;</span>`
+                }
+                html += trailingBr
+            } else if (i === activeIndex) {
+                html += `<span class="active-sentence${isFirst}"${isEmpty}>&#8203;</span>`
+            }
+        }
+
+        // Clean out zero width space bugs affecting backwards typing check
+        const cleanInner = (str) => typeof str === 'string' ? str.replace(/\u200B/g, '') : ''
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = html
+        if (cleanInner(editable.innerText) === cleanInner(tempDiv.innerText) && cleanInner(editable.innerHTML) === cleanInner(html)) return
+
+        editable.innerHTML = html
+        restoreCursor(editable, offset)
     }
 
     function syncOverlaySize() {
@@ -266,6 +494,22 @@ export default function EditorPage() {
     function handleKeyDown(e) {
         document.body.classList.remove('is-scrolling')
         if (e.key === 'Enter') {
+            e.preventDefault()
+            const selection = window.getSelection()
+            if (!selection.rangeCount) return
+
+            // Insert newline explicitly
+            const range = selection.getRangeAt(0)
+            range.deleteContents()
+            const br = document.createElement('br')
+            const textNode = document.createTextNode('\u200B') // zero width space after br helps cursor
+            range.insertNode(textNode)
+            range.insertNode(br)
+            range.setStartAfter(textNode)
+            range.collapse(true)
+            selection.removeAllRanges()
+            selection.addRange(range)
+
             setTimeout(() => { ensureStructure(); updateFocus(); scrollEngine(true); queueSave() }, 0)
         }
     }
@@ -292,11 +536,24 @@ export default function EditorPage() {
 
     function setCursorToEnd() {
         const el = editableRef.current
-        if (!el?.lastChild) return
+        if (!el) return
+
         const range = document.createRange()
         const sel = window.getSelection()
-        range.selectNodeContents(el)
-        range.collapse(false)
+
+        // Find deepest last child to ensure cursor actually falls inside spans
+        let lastNode = el
+        while (lastNode.lastChild) {
+            lastNode = lastNode.lastChild
+        }
+
+        if (lastNode.nodeType === 3) {
+            range.setStart(lastNode, lastNode.nodeValue.length)
+        } else {
+            range.selectNodeContents(lastNode)
+        }
+
+        range.collapse(true)
         sel.removeAllRanges()
         sel.addRange(range)
     }
@@ -322,7 +579,7 @@ export default function EditorPage() {
         setMenuOpen(false)
     }
 
-    const modeLabel = currentModeRef.current === 'spotlight' ? 'Switch to Paragraph' : 'Switch to Spotlight'
+    const modeLabel = currentModeRef.current === 'spotlight' ? 'Switch to Normal Mode' : 'Switch to Focus Mode'
 
     return (
         <div className="flex flex-col items-center justify-center overflow-hidden mode-paragraph" style={{ height: '100dvh', backgroundColor: 'var(--bg-body)', color: 'var(--text-main)' }}>
@@ -335,7 +592,6 @@ export default function EditorPage() {
                     className="flex-grow overflow-y-auto px-6 md:px-32 relative"
                     onScroll={handleScroll}
                 >
-                    <div id="focus-overlay" ref={overlayRef} />
                     <div
                         id="editable-area"
                         ref={editableRef}

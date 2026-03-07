@@ -22,6 +22,12 @@ export default function HomePage() {
     const [currentFolderId, setCurrentFolderId] = useState(folderParam || 'root')
     const [items, setItems] = useState(() => getItems())
     const [modalState, setModalState] = useState({ open: false, mode: 'create', targetId: null, defaultValue: '' })
+    const [viewMode, setViewMode] = useState(() => localStorage.getItem('brainlog_view_mode') || 'grid-view')
+
+    // Ensure viewMode is updated when returning to the page
+    useEffect(() => {
+        setViewMode(localStorage.getItem('brainlog_view_mode') || 'grid-view')
+    }, [])
 
     const refresh = useCallback(() => setItems(getItems()), [])
 
@@ -150,7 +156,7 @@ export default function HomePage() {
                 breadcrumbs={breadcrumbs}
             >
                 {/* Notes grid/list */}
-                <div className="notes-container grid-view pb-20 md:pb-0">
+                <div className={`notes-container ${viewMode} pb-20 md:pb-0`}>
                     {visibleItems.length === 0 ? (
                         <div className="col-span-full text-center mt-12" style={{ color: 'var(--text-muted)' }}>
                             {isTrash ? 'Trash is empty' : 'Empty — create a note or folder to get started'}

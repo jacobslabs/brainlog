@@ -10,11 +10,18 @@ export default function SettingsPage() {
     const { theme, setTheme } = useTheme()
     const { user, isLoading: userLoading } = useAuth()
     const [dailyGoal, setDailyGoal] = useState(() => localStorage.getItem('brainlog_daily_goal') || '0')
+    const [viewMode, setViewMode] = useState(() => localStorage.getItem('brainlog_view_mode') || 'grid-view')
     const [loggingOut, setLoggingOut] = useState(false)
 
     function handleThemeChange(e) {
         setTheme(e.target.value)
         db.updateProfile()
+    }
+
+    function handleViewChange(e) {
+        const v = e.target.value
+        setViewMode(v)
+        localStorage.setItem('brainlog_view_mode', v)
     }
 
     function handleGoalChange(e) {
@@ -67,6 +74,13 @@ export default function SettingsPage() {
                             <option value="system">System Default</option>
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                    <div className="setting-item border-t" style={{ borderColor: 'var(--border-color)' }}>
+                        <SettingInfo title="Default View" desc="Choose how notes are displayed." />
+                        <select id="view-selector" value={viewMode} onChange={handleViewChange} className="form-select">
+                            <option value="grid-view">Grid View</option>
+                            <option value="list-view">List View</option>
                         </select>
                     </div>
                 </div>
