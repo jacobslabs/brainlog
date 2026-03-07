@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDate, parseNoteContent } from '../hooks/useNotes'
+import { Search, X, Folder, FileText } from 'lucide-react'
 
 function highlightMatch(text, query) {
     if (!text || !query) return text
@@ -75,9 +76,7 @@ export default function SearchModal({ isOpen, onClose }) {
             >
                 {/* Search Input */}
                 <div className="p-4 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                    </svg>
+                    <Search className="w-5 h-5 opacity-50" />
                     <input
                         ref={inputRef}
                         type="text"
@@ -96,9 +95,7 @@ export default function SearchModal({ isOpen, onClose }) {
                         ESC
                     </button>
                     <button onClick={onClose} className="md:hidden p-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <X className="w-6 h-6" />
                     </button>
                 </div>
 
@@ -113,17 +110,13 @@ export default function SearchModal({ isOpen, onClose }) {
                             let icon, title, snippet
                             if (item.type === 'folder') {
                                 icon = (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                                    </svg>
+                                    <Folder className="w-5 h-5 text-yellow-500" fill="currentColor" />
                                 )
                                 title = item.name
                                 snippet = 'Folder'
                             } else {
                                 icon = (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
+                                    <FileText className="w-5 h-5 opacity-40" strokeWidth={2} />
                                 )
                                 const lines = parseNoteContent(item.content)
                                 title = lines[0] || 'Untitled'

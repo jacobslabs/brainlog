@@ -6,7 +6,7 @@ const STORAGE_KEY = 'elegant_writer_notes'
 export const db = {
     // 1. SYNC: Download Cloud Data -> Merge with Local
     async sync() {
-        const user = await auth.getUser()
+        const user = auth.currentUser
         if (!user) return
 
         const { data: cloudNotes, error } = await supabase.from('notes').select('*')
@@ -46,7 +46,7 @@ export const db = {
 
     // 2. PUSH: Single Item Upload
     async pushItem(item) {
-        const user = await auth.getUser()
+        const user = auth.currentUser
         if (!user) return
 
         const payload = {
@@ -69,7 +69,7 @@ export const db = {
 
     // 3. FORCE BACKUP: Upload EVERYTHING
     async uploadAll() {
-        const user = await auth.getUser()
+        const user = auth.currentUser
         if (!user) return
 
         const localNotes = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
@@ -130,7 +130,7 @@ export const db = {
     },
 
     async updateProfile() {
-        const user = await auth.getUser()
+        const user = auth.currentUser
         if (!user) return
 
         const payload = {

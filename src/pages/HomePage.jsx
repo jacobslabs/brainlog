@@ -4,6 +4,7 @@ import Layout from '../components/Layout'
 import Modal from '../components/Modal'
 import { db } from '../lib/db'
 import { formatDate, parseNoteContent } from '../hooks/useNotes'
+import { CornerUpLeft, Trash2, X, Folder, Pencil } from 'lucide-react'
 
 const STORAGE_KEY = 'elegant_writer_notes'
 
@@ -20,7 +21,6 @@ export default function HomePage() {
     const folderParam = searchParams.get('folder')
     const [currentFolderId, setCurrentFolderId] = useState(folderParam || 'root')
     const [items, setItems] = useState(() => getItems())
-    const [currentView, setCurrentView] = useState(() => localStorage.getItem('elegant_writer_view_pref') || 'grid')
     const [modalState, setModalState] = useState({ open: false, mode: 'create', targetId: null, defaultValue: '' })
 
     const refresh = useCallback(() => setItems(getItems()), [])
@@ -139,11 +139,6 @@ export default function HomePage() {
         setModalState({ open: true, mode: 'rename', targetId: itemId, defaultValue: currentName })
     }
 
-    function setView(v) {
-        setCurrentView(v)
-        localStorage.setItem('elegant_writer_view_pref', v)
-    }
-
     return (
         <>
             <Layout
@@ -154,14 +149,8 @@ export default function HomePage() {
                 isTrash={isTrash}
                 breadcrumbs={breadcrumbs}
             >
-                {/* View toggle (desktop) */}
-                <div className="hidden md:flex justify-end mb-4 gap-2">
-                    <button onClick={() => setView('grid')} className={`view-btn px-3 text-xs font-medium${currentView === 'grid' ? ' active' : ''}`}>Grid</button>
-                    <button onClick={() => setView('list')} className={`view-btn px-3 text-xs font-medium${currentView === 'list' ? ' active' : ''}`}>List</button>
-                </div>
-
                 {/* Notes grid/list */}
-                <div className={`notes-container ${currentView}-view pb-20 md:pb-0`}>
+                <div className="notes-container grid-view pb-20 md:pb-0">
                     {visibleItems.length === 0 ? (
                         <div className="col-span-full text-center mt-12" style={{ color: 'var(--text-muted)' }}>
                             {isTrash ? 'Trash is empty' : 'Empty — create a note or folder to get started'}
@@ -222,21 +211,15 @@ function NoteCard({ item, isTrash, onDelete, onRestore }) {
                 {isTrash ? (
                     <>
                         <button onClick={(e) => onRestore(e, item.id)} className="icon-btn btn-restore" title="Restore">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                            </svg>
+                            <CornerUpLeft className="w-4 h-4" />
                         </button>
                         <button onClick={(e) => onDelete(e, item.id)} className="icon-btn btn-delete" title="Delete Forever">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <X className="w-4 h-4" />
                         </button>
                     </>
                 ) : (
                     <button onClick={(e) => onDelete(e, item.id)} className="icon-btn btn-delete" title="Move to Trash">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                        </svg>
+                        <Trash2 className="w-4 h-4" />
                     </button>
                 )}
             </div>
@@ -251,36 +234,26 @@ function FolderCard({ item, isTrash, onNavigate, onDelete, onRestore, onRename }
             onClick={isTrash ? undefined : () => onNavigate(item.id)}
         >
             <div className="flex items-center gap-2 flex-grow truncate pointer-events-none">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--accent-icon)' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-                </svg>
+                <Folder className="w-5 h-5 flex-shrink-0" fill="currentColor" style={{ color: 'var(--accent-icon)' }} />
                 <span className="font-medium truncate">{item.name}</span>
             </div>
             <div className="card-actions">
                 {isTrash ? (
                     <>
                         <button onClick={(e) => onRestore(e, item.id)} className="icon-btn btn-restore" title="Restore">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                            </svg>
+                            <CornerUpLeft className="w-4 h-4" />
                         </button>
                         <button onClick={(e) => onDelete(e, item.id)} className="icon-btn btn-delete" title="Delete Forever">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <X className="w-4 h-4" />
                         </button>
                     </>
                 ) : (
                     <>
                         <button onClick={(e) => onRename(e, item.id, item.name)} className="icon-btn btn-edit" title="Rename">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-                            </svg>
+                            <Pencil className="w-4 h-4" />
                         </button>
                         <button onClick={(e) => onDelete(e, item.id)} className="icon-btn btn-delete" title="Move to Trash">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                            </svg>
+                            <Trash2 className="w-4 h-4" />
                         </button>
                     </>
                 )}

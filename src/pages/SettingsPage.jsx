@@ -3,24 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { db } from '../lib/db'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
+import { ArrowLeft, ChevronRight, Loader2, LogOut, LogIn } from 'lucide-react'
 
 export default function SettingsPage() {
     const navigate = useNavigate()
     const { theme, setTheme } = useTheme()
     const { user, isLoading: userLoading } = useAuth()
-    const [viewMode, setViewMode] = useState(() => localStorage.getItem('elegant_writer_view_pref') || 'grid')
     const [dailyGoal, setDailyGoal] = useState(() => localStorage.getItem('brainlog_daily_goal') || '0')
     const [loggingOut, setLoggingOut] = useState(false)
 
     function handleThemeChange(e) {
         setTheme(e.target.value)
-        db.updateProfile()
-    }
-
-    function handleViewChange(e) {
-        const v = e.target.value
-        setViewMode(v)
-        localStorage.setItem('elegant_writer_view_pref', v)
         db.updateProfile()
     }
 
@@ -60,9 +53,7 @@ export default function SettingsPage() {
                         className="p-2 -ml-2 rounded-full transition-all cursor-pointer hover:bg-neutral-500/10"
                         style={{ color: 'var(--text-muted)' }}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                        </svg>
+                        <ArrowLeft className="w-5 h-5 pointer-events-none" />
                     </button>
                     <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
                 </div>
@@ -76,13 +67,6 @@ export default function SettingsPage() {
                             <option value="system">System Default</option>
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
-                        </select>
-                    </div>
-                    <div className="setting-item">
-                        <SettingInfo title="Layout View" desc="Choose how notes are displayed." />
-                        <select id="view-selector" value={viewMode} onChange={handleViewChange} className="form-select">
-                            <option value="grid">Grid</option>
-                            <option value="list">List</option>
                         </select>
                     </div>
                 </div>
@@ -113,9 +97,7 @@ export default function SettingsPage() {
                 <div className="setting-group">
                     <button onClick={() => navigate('/stats')} className="setting-item hover:bg-neutral-500/5 transition-colors cursor-pointer w-full text-left">
                         <SettingInfo title="Writing Statistics" desc="View word counts and typing speed." />
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" style={{ color: 'var(--text-muted)' }}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                        </svg>
+                        <ChevronRight className="w-5 h-5 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
                     </button>
                 </div>
 
@@ -168,18 +150,13 @@ export default function SettingsPage() {
                         >
                             {loggingOut ? (
                                 <div className="flex items-center gap-2 text-red-500 w-full justify-center py-2">
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                    </svg>
+                                    <Loader2 className="animate-spin h-4 w-4" />
                                     <span className="text-sm font-medium">Syncing & Logging out...</span>
                                 </div>
                             ) : (
                                 <>
                                     <SettingInfo title={<span className="text-red-400">Log Out</span>} desc="Sign out of this device." />
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-red-400">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                                    </svg>
+                                    <LogOut className="w-5 h-5 text-red-400" />
                                 </>
                             )}
                         </button>
@@ -189,9 +166,7 @@ export default function SettingsPage() {
                             className="setting-item hover:bg-blue-500/5 transition-colors cursor-pointer w-full text-left"
                         >
                             <SettingInfo title={<span className="text-blue-500">Log In / Sign Up</span>} desc="Sync your notes across devices." />
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-blue-500">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                            </svg>
+                            <LogIn className="w-5 h-5 text-blue-500" />
                         </button>
                     )}
                 </div>

@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 
 export const auth = {
+    currentUser: null,
     async signUp(email, password) {
         const { data, error } = await supabase.auth.signUp({ email, password })
         return { data, error }
@@ -13,14 +14,21 @@ export const auth = {
         await supabase.auth.signOut()
     },
     async getUser() {
-        const { data } = await supabase.auth.getUser()
-        return data.user
+        const { data, error } = await supabase.auth.getUser()
+        if (error) console.error('Auth GetUser Error:', error)
+        if (data?.user) auth.currentUser = data.user
+        return data?.user || null
     },
     async getSession() {
-        const { data } = await supabase.auth.getSession()
-        return data.session
+        const { data, error } = await supabase.auth.getSession()
+        if (error) console.error('Auth GetSession Error:', error)
+        if (data?.session?.user) auth.currentUser = data.session.user
+        return data?.session || null
     },
     onAuthStateChange(callback) {
-        return supabase.auth.onAuthStateChange(callback)
+        return supabase.auth.onAuthStateChange((event, session) => {
+            auth.currentUser = session?.user || null
+            callback(event, session)
+        })
     }
 }
