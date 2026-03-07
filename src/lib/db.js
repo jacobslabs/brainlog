@@ -99,7 +99,6 @@ export const db = {
         localStorage.removeItem(STORAGE_KEY)
         localStorage.removeItem('brainlog_stats')
         localStorage.removeItem('brainlog_daily_goal')
-        window.location.href = '/login'
     },
 
     // --- PROFILE & STATS ENGINE ---

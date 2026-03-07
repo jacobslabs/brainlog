@@ -43,6 +43,7 @@ export default function SettingsPage() {
     async function handleLogout() {
         setLoggingOut(true)
         await db.logout()
+        navigate('/login')
     }
 
     return (
