@@ -484,84 +484,39 @@ body {
   word-break: break-word;
   hyphens: auto;
   white-space: pre-wrap;
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: color-mix(in srgb, var(--text-main) 30%, transparent);
+  transition: color 0.3s ease;
 }
 
-#editable-area>span.first-sentence {
+/* First visual line styled as title */
+#editable-area::first-line {
   font-size: 2rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.3;
+}
+
+/* Empty placeholder */
+#editable-area:empty::before {
+  content: "Start writing...";
+  color: var(--text-muted);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Active sentence via CSS Highlight API */
+#editable-area::highlight(active-sentence) {
   color: var(--text-main);
 }
 
-#editable-area>span:not(.first-sentence) {
-  font-size: 1.125rem;
-  line-height: 1.8;
+/* During user scroll, show all text at full brightness */
+body.is-scrolling #editable-area {
+  color: var(--text-main) !important;
 }
 
-#editable-area>span.first-sentence:empty::before,
-#editable-area>span.first-sentence[data-empty="true"]::before {
-  content: "Untitled";
-  font-weight: 400;
-  opacity: 0.4;
-}
-
-#editable-area>span {
-  transition: opacity 0.4s ease, color 0.4s ease;
-}
-
-/* Focus/Spotlight Modes */
-#focus-overlay {
-  pointer-events: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10;
-  background: linear-gradient(to bottom,
-      var(--focus-overlay) 0%,
-      var(--focus-overlay) var(--focus-top, 0px),
-      rgba(0, 0, 0, 0) var(--focus-top, 0px),
-      rgba(0, 0, 0, 0) var(--focus-bottom, 0px),
-      var(--focus-overlay) var(--focus-bottom, 0px),
-      var(--focus-overlay) 100%);
-  transition: background 0.1s ease-out, opacity 0.3s ease;
-  opacity: 0;
-}
-
-body.mode-spotlight #focus-overlay {
-  display: none;
-}
-
-body.mode-spotlight #editable-area span.inactive-sentence {
-  opacity: 0.3;
-}
-
-body.mode-spotlight #editable-area span.active-sentence {
-  opacity: 1;
-}
-
-body.mode-paragraph #focus-overlay {
-  display: none;
-}
-
-body.mode-paragraph #editable-area>span {
-  opacity: 1;
-}
-
-body.is-scrolling #editable-area span.inactive-sentence {
-  opacity: 1 !important;
-  transition: opacity 0.3s ease;
-}
-
-body.is-scrolling #editable-area>span {
-  opacity: 1 !important;
-  transition: opacity 0.3s ease;
-}
-
-body.is-scrolling #focus-overlay {
-  opacity: 0 !important;
-  transition: opacity 0.3s ease;
+body.is-scrolling #editable-area::highlight(active-sentence) {
+  color: var(--text-main);
 }
 
 /* App Footer */

@@ -1,25 +1,99 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { db } from '../lib/db'
 import { saveWordStats, countWords } from '../hooks/useStats'
-import { ArrowLeft, Check, Info, Menu, Eye, Maximize } from 'lucide-react'
+import { ArrowLeft, Check, Info, Menu, Maximize } from 'lucide-react'
 
 const STORAGE_KEY = 'elegant_writer_notes'
-const KEY_MODE = 'elegant_writer_mode'
-
 function getNotes() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') }
+
+// Strip legacy span wrappers from old saved content
+function migrateContent(html) {
+    return html
+        .replace(/<span[^>]*class="[^"]*(?:active|inactive)-sentence[^"]*"[^>]*>/g, '')
+        .replace(/<\/span>/g, '')
+        .replace(/\u200B/g, '')
+}
+
+// Build a flat text map from the editable DOM: [{node, start, end}, ...]
+function getTextMap(root) {
+    const entries = []
+    let offset = 0
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL)
+    let n = walker.nextNode()
+    while (n) {
+        if (n.nodeType === 3) {
+            const len = n.nodeValue.length
+            entries.push({ node: n, start: offset, end: offset + len })
+            offset += len
+        } else if (n.nodeName === 'BR') {
+            entries.push({ node: n, start: offset, end: offset + 1, isBr: true })
+            offset += 1
+        }
+        n = walker.nextNode()
+    }
+    return { entries, length: offset }
+}
+
+// Get cursor offset as a flat character index
+function getCursorOffset(root) {
+    const sel = window.getSelection()
+    if (!sel.rangeCount || !sel.isCollapsed) return -1
+    const anchor = sel.anchorNode
+    const anchorOff = sel.anchorOffset
+    const { entries } = getTextMap(root)
+    for (const e of entries) {
+        if (e.isBr) continue
+        if (e.node === anchor) return e.start + anchorOff
+    }
+    // Anchor might be the root or a BR parent — find by child index
+    if (anchor === root) {
+        let off = 0
+        for (let i = 0; i < anchorOff && i < root.childNodes.length; i++) {
+            const child = root.childNodes[i]
+            if (child.nodeType === 3) off += child.nodeValue.length
+            else if (child.nodeName === 'BR') off += 1
+        }
+        return off
+    }
+    return entries.length > 0 ? entries[entries.length - 1].end : 0
+}
+
+// Create a DOM Range spanning [start, end) in flat text space
+function makeRange(entries, start, end) {
+    const range = document.createRange()
+    let rangeStartSet = false
+    for (const e of entries) {
+        if (e.isBr) continue
+        // Set start
+        if (!rangeStartSet && e.end > start) {
+            range.setStart(e.node, Math.max(0, start - e.start))
+            rangeStartSet = true
+        }
+        // Set end
+        if (rangeStartSet && e.end >= end) {
+            range.setEnd(e.node, Math.min(e.node.nodeValue.length, end - e.start))
+            return range
+        }
+    }
+    // Fallback: collapse at the end
+    if (!rangeStartSet && entries.length > 0) {
+        const last = entries[entries.length - 1]
+        if (!last.isBr) { range.setStart(last.node, last.node.nodeValue.length); range.setEnd(last.node, last.node.nodeValue.length) }
+    }
+    return range
+}
 
 export default function EditorPage() {
     const { id: NOTE_ID } = useParams()
     const navigate = useNavigate()
     const wrapperRef = useRef(null)
     const editableRef = useRef(null)
-    const overlayRef = useRef(null)
 
     const [wordCount, setWordCount] = useState(0)
     const [sentenceCount, setSentenceCount] = useState(0)
     const [readTime, setReadTime] = useState(0)
-    const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved'
+    const [saveState, setSaveState] = useState('idle')
     const [menuOpen, setMenuOpen] = useState(false)
     const [statsOpen, setStatsOpen] = useState(false)
     const [backHref, setBackHref] = useState('/')
@@ -28,105 +102,110 @@ export default function EditorPage() {
     const visualTimeoutRef = useRef(null)
     const isAutoScrollingRef = useRef(false)
     const scrollTimeoutRef = useRef(null)
-    const currentModeRef = useRef('paragraph')
-    const activeBlockRef = useRef(null)
     const startWordCountRef = useRef(0)
 
-    // ---- INIT ----
-    useEffect(() => {
-        const body = document.body
-        const savedMode = localStorage.getItem(KEY_MODE) || 'paragraph'
-        setMode(savedMode)
+    // ---- HIGHLIGHT (sentence focus) ----
+    const updateHighlight = useCallback(() => {
+        const el = editableRef.current
+        if (!el || !CSS.highlights) return
 
-        if (!NOTE_ID) { navigate('/'); return }
-        const notes = getNotes()
-        const note = notes.find(n => n.id === NOTE_ID)
+        const cursorOff = getCursorOffset(el)
+        if (cursorOff < 0) { CSS.highlights.delete('active-sentence'); return }
 
-        if (note) {
-            editableRef.current.innerHTML = note.content
-            if (note.parentId) setBackHref(`/?folder=${note.parentId}`)
-            renderStatus('saved')
-        } else {
-            // Setup blank structural height using br so native browser selection jumps into it properly immediately.
-            editableRef.current.innerHTML = '<span class="active-sentence first-sentence" data-empty="true">&#8203;</span>'
+        const { entries, length } = getTextMap(el)
+        if (length === 0) { CSS.highlights.delete('active-sentence'); return }
+
+        // Build flat text string to find sentence boundaries
+        let text = ''
+        for (const e of entries) {
+            if (e.isBr) text += '\n'
+            else text += e.node.nodeValue
         }
 
-        ensureStructure()
-        setCursorToEnd()
-        editableRef.current.focus()
-        updateStats()
-        syncOverlaySize()
-        updateFocus()
+        // Find active sentence boundaries around cursor
+        // Delimiters: . ? ! and newline
+        let sentenceStart = 0
+        let sentenceEnd = text.length
+        let foundDelimiter = null
 
-        const text = editableRef.current?.innerText || ''
-        startWordCountRef.current = countWords(text)
-
-        let attempts = 0
-        const interval = setInterval(() => {
-            forceCenter()
-            attempts++
-            if (attempts > 5) { clearInterval(interval); wrapperRef.current?.classList.add('ready') }
-        }, 20)
-
-        return () => {
-            clearInterval(interval)
-            clearTimeout(saveTimeoutRef.current)
-            clearTimeout(visualTimeoutRef.current)
-            body.classList.remove('mode-spotlight', 'mode-paragraph', 'zen-mode', 'is-scrolling')
+        // Scan backward for delimiter
+        for (let i = cursorOff - 1; i >= 0; i--) {
+            const ch = text[i]
+            if (ch === '.' || ch === '?' || ch === '!' || ch === '\n') {
+                sentenceStart = i + 1
+                foundDelimiter = ch
+                break
+            }
         }
-        // eslint-disable-next-line
-    }, [NOTE_ID])
 
-    // Zen mousemove
-    useEffect(() => {
-        let zenTimeout
-        const handler = () => {
-            if (!document.body.classList.contains('zen-mode')) return
-            document.body.classList.add('zen-ui-visible')
-            clearTimeout(zenTimeout)
-            zenTimeout = setTimeout(() => document.body.classList.remove('zen-ui-visible'), 2000)
+        // For punctuation (not newline): only split if user has typed content after the delimiter.
+        // This keeps the sentence highlighted until the user actually starts the next one.
+        if (foundDelimiter && foundDelimiter !== '\n') {
+            const afterDelimiter = text.substring(sentenceStart, cursorOff)
+            if (afterDelimiter.trim().length === 0) {
+                // Nothing typed yet — extend back to include the previous sentence
+                const delimIdx = sentenceStart - 1 // position of the delimiter itself
+                sentenceStart = 0
+                for (let i = delimIdx - 1; i >= 0; i--) {
+                    const ch = text[i]
+                    if (ch === '.' || ch === '?' || ch === '!' || ch === '\n') {
+                        sentenceStart = i + 1
+                        break
+                    }
+                }
+            }
         }
-        document.addEventListener('mousemove', handler)
-        return () => { document.removeEventListener('mousemove', handler); clearTimeout(zenTimeout) }
+
+        // Scan forward for delimiter
+        for (let i = cursorOff; i < text.length; i++) {
+            const ch = text[i]
+            if (ch === '.' || ch === '?' || ch === '!' || ch === '\n') {
+                sentenceEnd = i + 1 // include the delimiter
+                break
+            }
+        }
+
+        // Skip leading whitespace in the active sentence
+        while (sentenceStart < sentenceEnd && /\s/.test(text[sentenceStart])) sentenceStart++
+
+        if (sentenceStart >= sentenceEnd) {
+            CSS.highlights.delete('active-sentence')
+            return
+        }
+
+        try {
+            const range = makeRange(entries, sentenceStart, sentenceEnd)
+            CSS.highlights.set('active-sentence', new Highlight(range))
+        } catch {
+            CSS.highlights.delete('active-sentence')
+        }
     }, [])
 
-    // Fullscreen exit
-    useEffect(() => {
-        const handler = () => { if (!document.fullscreenElement) document.body.classList.remove('zen-mode') }
-        document.addEventListener('fullscreenchange', handler)
-        return () => document.removeEventListener('fullscreenchange', handler)
-    }, [])
-
-    // Close menus on click outside
-    useEffect(() => {
-        const handler = () => { setMenuOpen(false); setStatsOpen(false) }
-        document.addEventListener('click', handler)
-        return () => document.removeEventListener('click', handler)
-    }, [])
-
-    // ---- CORE FUNCTIONS ----
-    function setMode(mode) {
-        currentModeRef.current = mode
-        const body = document.body
-        if (mode === 'spotlight') { body.classList.replace('mode-paragraph', 'mode-spotlight') || body.classList.add('mode-spotlight'); body.classList.remove('mode-paragraph') }
-        else { body.classList.replace('mode-spotlight', 'mode-paragraph') || body.classList.add('mode-paragraph'); body.classList.remove('mode-spotlight') }
-        localStorage.setItem(KEY_MODE, mode)
+    // ---- SCROLL ENGINE (typewriter centering) ----
+    function scrollEngine(instant = false) {
+        const wrapper = wrapperRef.current
+        if (!wrapper) return
+        const sel = window.getSelection()
+        if (!sel.rangeCount) return
+        const rect = sel.getRangeAt(0).getBoundingClientRect()
+        if (rect.top === 0 && rect.bottom === 0) return
+        const wRect = wrapper.getBoundingClientRect()
+        const offset = (rect.top - wRect.top) - (wRect.height / 2) + (rect.height / 2)
+        if (Math.abs(offset) > 1) {
+            isAutoScrollingRef.current = true
+            clearTimeout(scrollTimeoutRef.current)
+            if (instant) wrapper.scrollTop += offset
+            else wrapper.scrollTo({ top: wrapper.scrollTop + offset, behavior: 'smooth' })
+            scrollTimeoutRef.current = setTimeout(() => { isAutoScrollingRef.current = false }, 500)
+        }
     }
 
+    // ---- SAVE ----
     function renderStatus(state) {
         setSaveState(state)
         if (state === 'saving') {
             clearTimeout(visualTimeoutRef.current)
             visualTimeoutRef.current = setTimeout(() => setSaveState('saved'), 1200)
-        }
-    }
-
-    function ensureStructure() {
-        const el = editableRef.current
-        if (!el) return
-        if (!el.firstChild || el.innerHTML.replace(/\u200B/g, '').trim() === '') {
-            // For zero-content states, contentEditable needs a br or structural height to click into.
-            el.innerHTML = '<span class="active-sentence first-sentence" data-empty="true">&#8203;</span>'
         }
     }
 
@@ -150,6 +229,7 @@ export default function EditorPage() {
         }
     }
 
+    // ---- STATS ----
     function updateStats() {
         const el = editableRef.current
         if (!el) return
@@ -187,339 +267,33 @@ export default function EditorPage() {
         if (delta !== 0) { saveWordStats(delta); startWordCountRef.current = currentCount }
     }
 
-    function updateFocus() {
-        const wrapper = wrapperRef.current
-        const editable = editableRef.current
-        if (!wrapper || !editable) return
-        const selection = window.getSelection()
-        if (!selection.rangeCount) return
-
-        let node = selection.anchorNode
-        while (node && node.parentNode !== editable && node.parentNode !== document.body) {
-            node = node.parentNode
-        }
-
-        if (currentModeRef.current === 'spotlight') {
-            applySentenceFocus(editable)
-        } else {
-            // Remove any sentence spans if we switch back to paragraph
-            const spans = editable.querySelectorAll('span.active-sentence, span.inactive-sentence')
-            if (spans.length > 0) {
-                const savedCursor = saveCursor(editable)
-                spans.forEach(span => {
-                    const parent = span.parentNode
-                    while (span.firstChild) parent.insertBefore(span.firstChild, span)
-                    parent.removeChild(span)
-                })
-                restoreCursor(editable, savedCursor)
-            }
-        }
-    }
-
-    function saveCursor(root) {
-        const selection = window.getSelection()
-        if (selection.rangeCount === 0) return 0
-        const range = selection.getRangeAt(0)
-
-        const nodes = []
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL, null, false)
-        let n = walker.nextNode()
-        while (n) {
-            if (n.nodeType === 3 || n.nodeName === 'BR') nodes.push(n)
-            n = walker.nextNode()
-        }
-
-        let charIndex = 0
-        for (let i = 0; i < nodes.length; i++) {
-            const node = nodes[i]
-            const nodeRange = document.createRange()
-            if (node.nodeType === 3) nodeRange.setStart(node, 0)
-            else nodeRange.setStartBefore(node)
-
-            if (range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0) {
-                break
-            }
-
-            if (node === range.startContainer && node.nodeType === 3) {
-                const preCursorText = node.nodeValue.substring(0, range.startOffset)
-                charIndex += preCursorText.replace(/\u200B/g, '').length
-                break
-            }
-
-            if (node.nodeType === 3) {
-                charIndex += node.nodeValue.replace(/\u200B/g, '').length
-            } else if (node.nodeName === 'BR') {
-                charIndex += 1
-            }
-        }
-        return charIndex
-    }
-
-    function restoreCursor(root, offset) {
-        const selection = window.getSelection()
-        const range = document.createRange()
-        range.setStart(root, 0)
-        range.collapse(true)
-
-        const nodes = []
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL, null, false)
-        let n = walker.nextNode()
-        while (n) {
-            if (n.nodeType === 3 || n.nodeName === 'BR') nodes.push(n)
-            n = walker.nextNode()
-        }
-
-        let charIndex = 0
-        let found = false
-        let lastNode = null
-
-        for (let i = 0; i < nodes.length; i++) {
-            const node = nodes[i]
-
-            if (node.nodeType === 3) {
-                const len = node.nodeValue.replace(/\u200B/g, '').length
-
-                if (offset < charIndex + len || (offset === charIndex + len && i === nodes.length - 1)) {
-                    let innerOffset = offset - charIndex
-
-                    // Identify how many ZWS characters exist before our target logical index
-                    // to adjust the exact native DOM string index
-                    let logicalCount = 0
-                    let nativeIndex = 0
-                    for (; nativeIndex < node.nodeValue.length; nativeIndex++) {
-                        if (logicalCount === innerOffset) break
-                        if (node.nodeValue.charCodeAt(nativeIndex) !== 8203) logicalCount++
-                    }
-                    // If target was precisely at end, advance past any trailing ZWS (though they usually stand prefix)
-                    while (nativeIndex < node.nodeValue.length && node.nodeValue.charCodeAt(nativeIndex) === 8203) {
-                        nativeIndex++
-                    }
-
-                    range.setStart(node, nativeIndex)
-                    found = true
-                    break
-                }
-                charIndex += len
-            } else if (node.nodeName === 'BR') {
-                if (offset === charIndex) {
-                    range.setStartBefore(node)
-                    found = true
-                    break
-                }
-                charIndex += 1
-            }
-            lastNode = node
-        }
-
-        if (!found && lastNode) {
-            if (lastNode.nodeType === 3) {
-                range.setStart(lastNode, lastNode.nodeValue.length)
-            } else {
-                range.setStartAfter(lastNode)
-            }
-        }
-
-        selection.removeAllRanges()
-        selection.addRange(range)
-    }
-
-    function applySentenceFocus(editable) {
-        // Only apply if user isn't actively making a selection drag
-        const selection = window.getSelection()
-        if (!selection.isCollapsed) return
-
-        const offset = saveCursor(editable)
-        let text = ''
-        function extractText(node) {
-            if (node.nodeType === 3) {
-                text += node.nodeValue
-            } else if (node.nodeName === 'BR') {
-                text += '\n'
-            } else if (node.nodeName === 'DIV' || node.nodeName === 'P') {
-                text += '\n'
-                for (let i = 0; i < node.childNodes.length; i++) extractText(node.childNodes[i])
-            } else {
-                for (let i = 0; i < node.childNodes.length; i++) extractText(node.childNodes[i])
-            }
-        }
-        extractText(editable)
-
-        const regex = /[^.!?\n]+[.!?\n]+/g
-        let match
-        const boundaries = []
-        let lastIdx = 0
-        while ((match = regex.exec(text)) !== null) {
-            boundaries.push({ start: match.index, end: match.index + match[0].length })
-            lastIdx = match.index + match[0].length
-        }
-        if (lastIdx < text.length) boundaries.push({ start: lastIdx, end: text.length })
-
-        let activeIndex = -1
-        let isAtBoundaryEnd = false
-        for (let i = 0; i < boundaries.length; i++) {
-            if (offset >= boundaries[i].start && offset < boundaries[i].end) {
-                activeIndex = i
-                break
-            }
-            if (offset === boundaries[i].end) {
-                const boundaryStr = text.substring(boundaries[i].start, boundaries[i].end)
-                if (/[.!?\n]$/.test(boundaryStr)) {
-                    isAtBoundaryEnd = true
-                    activeIndex = i + 1
-                } else {
-                    activeIndex = i
-                }
-            }
-        }
-        if (activeIndex === -1 && boundaries.length > 0) activeIndex = boundaries.length - 1
-        if (activeIndex >= boundaries.length && isAtBoundaryEnd) {
-            boundaries.push({ start: text.length, end: text.length })
-            activeIndex = boundaries.length - 1
-        }
-
-        // --- Fast Path DOM class updater ---
-        // Avoid destroying innerHTML and losing native selection if structure hasn't fundamentally changed.
-        const currentSpans = Array.from(editable.querySelectorAll('span.active-sentence, span.inactive-sentence'))
-        const hasDivs = editable.querySelector('div, p') !== null
-        const rawEmpty = text.replace(/[\n\u200B]/g, '').trim().length === 0
-
-        if (!hasDivs && currentSpans.length === boundaries.length) {
-            for (let i = 0; i < boundaries.length; i++) {
-                const span = currentSpans[i]
-                const isFirst = i === 0 ? ' first-sentence' : ''
-                span.className = (i === activeIndex ? 'active-sentence' : 'inactive-sentence') + isFirst
-                if (rawEmpty && i === 0) span.setAttribute('data-empty', 'true')
-                else span.removeAttribute('data-empty')
-            }
-            return
-        }
-        // --- End Fast Path ---
-
-        let html = ''
-        for (let i = 0; i < boundaries.length; i++) {
-            const b = boundaries[i]
-            let sentenceText = text.substring(b.start, b.end)
-
-            // Clean zero-width spaces that might have snuck into extraction
-            sentenceText = sentenceText.replace(/\u200B/g, '')
-
-            const isFirst = i === 0 ? ' first-sentence' : ''
-            const isEmpty = text.replace(/[\n\u200B]/g, '').trim().length === 0 ? ' data-empty="true"' : ''
-
-            if (sentenceText.length > 0) {
-                let textContent = sentenceText
-                let trailingBr = ''
-
-                const trailingMatch = textContent.match(/\n+$/)
-                if (trailingMatch) {
-                    textContent = textContent.substring(0, textContent.length - trailingMatch[0].length)
-                    trailingBr = '<br>'.repeat(trailingMatch[0].length)
-                }
-
-                const leadingMatch = textContent.match(/^\n+/)
-                let leadingBr = ''
-                if (leadingMatch) {
-                    textContent = textContent.substring(leadingMatch[0].length)
-                    leadingBr = '<br>'.repeat(leadingMatch[0].length)
-                }
-
-                html += leadingBr
-                if (textContent.length > 0) {
-                    html += `<span class="${i === activeIndex ? 'active-sentence' : 'inactive-sentence'}${isFirst}"${isEmpty}>${textContent}</span>`
-                } else if (i === activeIndex) {
-                    html += `<span class="active-sentence${isFirst}"${isEmpty}>&#8203;</span>`
-                }
-                html += trailingBr
-            } else if (i === activeIndex) {
-                html += `<span class="active-sentence${isFirst}"${isEmpty}>&#8203;</span>`
-            }
-        }
-
-        // Clean out zero width space bugs affecting backwards typing check
-        const cleanInner = (str) => typeof str === 'string' ? str.replace(/\u200B/g, '') : ''
-        const tempDiv = document.createElement('div')
-        tempDiv.innerHTML = html
-        if (cleanInner(editable.innerText) === cleanInner(tempDiv.innerText) && cleanInner(editable.innerHTML) === cleanInner(html)) return
-
-        editable.innerHTML = html
-        restoreCursor(editable, offset)
-    }
-
-    function syncOverlaySize() {
-        const editable = editableRef.current
-        const overlay = overlayRef.current
-        if (currentModeRef.current === 'spotlight' && overlay && editable) {
-            overlay.style.height = `${editable.scrollHeight}px`
-        }
-    }
-
-    function scrollEngine(instant = false) {
-        const wrapper = wrapperRef.current
-        if (!wrapper) return
-        const selection = window.getSelection()
-        if (!selection.rangeCount) return
-        let targetRect = null
-        const range = selection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        if (rect.top !== 0 || rect.bottom !== 0) targetRect = rect
-        else if (activeBlockRef.current) targetRect = activeBlockRef.current.getBoundingClientRect()
-        if (!targetRect) return
-        const wRect = wrapper.getBoundingClientRect()
-        const relTop = targetRect.top - wRect.top
-        const targetY = wRect.height / 2
-        const offset = relTop - targetY + (targetRect.height / 2)
-        if (Math.abs(offset) > 1) {
-            isAutoScrollingRef.current = true
-            clearTimeout(scrollTimeoutRef.current)
-            if (instant) wrapper.scrollTop += offset
-            else wrapper.scrollTo({ top: wrapper.scrollTop + offset, behavior: 'smooth' })
-            scrollTimeoutRef.current = setTimeout(() => { isAutoScrollingRef.current = false }, 500)
-        }
-    }
-
-    function forceCenter() { scrollEngine(true) }
-
-    function handleInput(e) {
+    // ---- HANDLERS ----
+    function handleInput() {
         updateTracking()
-        ensureStructure()
-        syncOverlaySize()
-        updateFocus()
+        updateHighlight()
         updateStats()
         queueSave()
-        if (e.nativeEvent?.inputType !== 'insertParagraph') {
-            requestAnimationFrame(() => scrollEngine(false))
-        }
+        requestAnimationFrame(() => scrollEngine(false))
     }
 
     function handleKeyDown(e) {
         document.body.classList.remove('is-scrolling')
         if (e.key === 'Enter') {
             e.preventDefault()
-            const selection = window.getSelection()
-            if (!selection.rangeCount) return
-
-            // Insert newline explicitly
-            const range = selection.getRangeAt(0)
-            range.deleteContents()
-            const br = document.createElement('br')
-            const textNode = document.createTextNode('\u200B') // zero width space after br helps cursor
-            range.insertNode(textNode)
-            range.insertNode(br)
-            range.setStartAfter(textNode)
-            range.collapse(true)
-            selection.removeAllRanges()
-            selection.addRange(range)
-
-            setTimeout(() => { ensureStructure(); updateFocus(); scrollEngine(true); queueSave() }, 0)
-        }
-    }
-
-    function handleSelectionChange() {
-        if (document.activeElement === editableRef.current) {
-            updateFocus()
+            document.execCommand('insertLineBreak')
+            updateHighlight()
+            updateStats()
+            queueSave()
             requestAnimationFrame(() => scrollEngine(false))
         }
     }
+
+    const handleSelectionChange = useCallback(() => {
+        if (document.activeElement === editableRef.current) {
+            updateHighlight()
+            requestAnimationFrame(() => scrollEngine(false))
+        }
+    }, [updateHighlight])
 
     function handleScroll() {
         if (!isAutoScrollingRef.current && !document.body.classList.contains('is-scrolling')) {
@@ -531,39 +305,21 @@ export default function EditorPage() {
         e.preventDefault()
         const text = (e.clipboardData || window.clipboardData).getData('text/plain')
         document.execCommand('insertText', false, text)
-        handleInput({ nativeEvent: { inputType: 'insertText' } })
+        handleInput()
     }
 
     function setCursorToEnd() {
         const el = editableRef.current
         if (!el) return
-
         const range = document.createRange()
         const sel = window.getSelection()
-
-        // Find deepest last child to ensure cursor actually falls inside spans
         let lastNode = el
-        while (lastNode.lastChild) {
-            lastNode = lastNode.lastChild
-        }
-
-        if (lastNode.nodeType === 3) {
-            range.setStart(lastNode, lastNode.nodeValue.length)
-        } else {
-            range.selectNodeContents(lastNode)
-        }
-
-        range.collapse(true)
+        while (lastNode.lastChild) lastNode = lastNode.lastChild
+        if (lastNode.nodeType === 3) range.setStart(lastNode, lastNode.nodeValue.length)
+        else range.selectNodeContents(lastNode)
+        range.collapse(false)
         sel.removeAllRanges()
         sel.addRange(range)
-    }
-
-    function toggleMode() {
-        const next = currentModeRef.current === 'spotlight' ? 'paragraph' : 'spotlight'
-        setMode(next)
-        updateFocus()
-        forceCenter()
-        setMenuOpen(false)
     }
 
     function toggleZen() {
@@ -579,13 +335,81 @@ export default function EditorPage() {
         setMenuOpen(false)
     }
 
-    const modeLabel = currentModeRef.current === 'spotlight' ? 'Switch to Normal Mode' : 'Switch to Focus Mode'
+    // ---- INIT ----
+    useEffect(() => {
+        if (!NOTE_ID) { navigate('/'); return }
+        const notes = getNotes()
+        const note = notes.find(n => n.id === NOTE_ID)
 
+        if (note) {
+            editableRef.current.innerHTML = migrateContent(note.content)
+            if (note.parentId) setBackHref(`/?folder=${note.parentId}`)
+            renderStatus('saved')
+        }
+
+        setCursorToEnd()
+        editableRef.current.focus()
+        updateStats()
+        updateHighlight()
+
+        const text = editableRef.current?.innerText || ''
+        startWordCountRef.current = countWords(text)
+
+        let attempts = 0
+        const interval = setInterval(() => {
+            scrollEngine(true)
+            attempts++
+            if (attempts > 5) { clearInterval(interval); wrapperRef.current?.classList.add('ready') }
+        }, 20)
+
+        return () => {
+            clearInterval(interval)
+            clearTimeout(saveTimeoutRef.current)
+            clearTimeout(visualTimeoutRef.current)
+            CSS.highlights?.delete('active-sentence')
+            document.body.classList.remove('zen-mode', 'is-scrolling')
+        }
+        // eslint-disable-next-line
+    }, [NOTE_ID])
+
+    // Selection change listener
+    useEffect(() => {
+        document.addEventListener('selectionchange', handleSelectionChange)
+        return () => document.removeEventListener('selectionchange', handleSelectionChange)
+    }, [handleSelectionChange])
+
+    // Zen mousemove
+    useEffect(() => {
+        let zenTimeout
+        const handler = () => {
+            if (!document.body.classList.contains('zen-mode')) return
+            document.body.classList.add('zen-ui-visible')
+            clearTimeout(zenTimeout)
+            zenTimeout = setTimeout(() => document.body.classList.remove('zen-ui-visible'), 2000)
+        }
+        document.addEventListener('mousemove', handler)
+        return () => { document.removeEventListener('mousemove', handler); clearTimeout(zenTimeout) }
+    }, [])
+
+    // Fullscreen exit
+    useEffect(() => {
+        const handler = () => { if (!document.fullscreenElement) document.body.classList.remove('zen-mode') }
+        document.addEventListener('fullscreenchange', handler)
+        return () => document.removeEventListener('fullscreenchange', handler)
+    }, [])
+
+    // Close menus on click outside
+    useEffect(() => {
+        const handler = () => { setMenuOpen(false); setStatsOpen(false) }
+        document.addEventListener('click', handler)
+        return () => document.removeEventListener('click', handler)
+    }, [])
+
+    // ---- RENDER ----
     return (
-        <div className="flex flex-col items-center justify-center overflow-hidden mode-paragraph" style={{ height: '100dvh', backgroundColor: 'var(--bg-body)', color: 'var(--text-main)' }}>
+        <div className="flex flex-col items-center justify-center overflow-hidden" style={{ height: '100dvh', backgroundColor: 'var(--bg-body)', color: 'var(--text-main)' }}>
             <div className="w-full max-w-5xl flex flex-col h-full md:h-[90vh] md:my-6 editor-container relative">
 
-                {/* Scrollable editor area */}
                 <div
                     id="editor-wrapper"
                     ref={wrapperRef}
@@ -617,7 +441,6 @@ export default function EditorPage() {
                     </div>
 
                     <div className="flex items-center gap-8 h-10 relative">
-                        {/* Back button */}
                         <a
                             href={backHref}
                             className="footer-btn p-2 rounded-full h-10 w-10 flex items-center justify-center"
@@ -626,7 +449,6 @@ export default function EditorPage() {
                             <ArrowLeft className="w-5 h-5 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
                         </a>
 
-                        {/* Word count + stats popover */}
                         <div className="flex items-center gap-2 h-10 relative">
                             <div id="save-indicator">
                                 {saveState === 'saving' && <div className="status-saving" />}
@@ -642,7 +464,6 @@ export default function EditorPage() {
                             >
                                 <Info className="w-4 h-4 text-inherit" />
                             </button>
-                            {/* Stats popover */}
                             <div className={`popover-menu popover-center absolute bottom-full mb-4 left-1/2 px-4 py-2 rounded-lg shadow-xl text-xs z-50 whitespace-nowrap ${statsOpen ? 'popover-visible' : 'popover-hidden'}`}
                                 style={{ backgroundColor: 'var(--text-main)', color: 'var(--bg-card)' }}>
                                 <div>{sentenceCount} sentences</div>
@@ -651,7 +472,6 @@ export default function EditorPage() {
                             </div>
                         </div>
 
-                        {/* Editor options menu */}
                         <div className="relative">
                             <button
                                 id="editor-menu-toggle"
@@ -667,11 +487,7 @@ export default function EditorPage() {
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="flex flex-col py-1">
-                                    <button onClick={toggleMode} className="text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800" style={{ color: 'var(--text-main)' }}>
-                                        <Eye className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                                        {modeLabel}
-                                    </button>
-                                    <button onClick={toggleZen} className="text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800" style={{ borderTop: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                                    <button onClick={toggleZen} className="text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800" style={{ color: 'var(--text-main)' }}>
                                         <Maximize className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                                         Zen Mode
                                     </button>
@@ -681,18 +497,6 @@ export default function EditorPage() {
                     </div>
                 </div>
             </div>
-
-            {/* Selection change listener via useEffect */}
-            <SelectionChangeListener onSelectionChange={handleSelectionChange} />
         </div>
     )
-}
-
-// Component to listen for selectionchange events
-function SelectionChangeListener({ onSelectionChange }) {
-    useEffect(() => {
-        document.addEventListener('selectionchange', onSelectionChange)
-        return () => document.removeEventListener('selectionchange', onSelectionChange)
-    }, [onSelectionChange])
-    return null
 }
