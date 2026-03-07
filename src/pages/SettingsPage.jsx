@@ -55,7 +55,7 @@ export default function SettingsPage() {
             className="flex flex-col items-center min-h-screen pb-24 md:pb-12 md:p-12"
             style={{ backgroundColor: 'var(--bg-body)', color: 'var(--text-main)' }}
         >
-            <div className="w-full max-w-3xl px-4 pt-4 md:px-0 md:pt-0">
+            <div className="w-full max-w-5xl px-4 pt-4 md:px-0 md:pt-0">
 
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-8">
