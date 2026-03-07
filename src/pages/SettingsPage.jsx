@@ -1,21 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { auth } from '../lib/auth'
 import { db } from '../lib/db'
 import { useTheme } from '../contexts/ThemeContext'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function SettingsPage() {
     const navigate = useNavigate()
     const { theme, setTheme } = useTheme()
+    const { user, isLoading: userLoading } = useAuth()
     const [viewMode, setViewMode] = useState(() => localStorage.getItem('elegant_writer_view_pref') || 'grid')
     const [dailyGoal, setDailyGoal] = useState(() => localStorage.getItem('brainlog_daily_goal') || '0')
-    const [user, setUser] = useState(null)
-    const [userLoading, setUserLoading] = useState(true)
     const [loggingOut, setLoggingOut] = useState(false)
-
-    useEffect(() => {
-        auth.getUser().then(u => { setUser(u); setUserLoading(false) })
-    }, [])
 
     function handleThemeChange(e) {
         setTheme(e.target.value)
