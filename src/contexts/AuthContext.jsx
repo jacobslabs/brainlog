@@ -9,16 +9,9 @@ export function AuthProvider({ children }) {
     const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
-        // Initial setup
-        auth.getUser().then(async (u) => {
+        // Initial setup only fetches session to unblock UI render
+        auth.getUser().then((u) => {
             setUser(u)
-            if (u) {
-                try {
-                    await db.sync()
-                } catch (e) {
-                    console.log('Sync error (offline?):', e)
-                }
-            }
             setIsLoading(false)
         })
 
@@ -27,13 +20,16 @@ export function AuthProvider({ children }) {
             const currentUser = session?.user || null
             setUser(currentUser)
 
-            if (event === 'SIGNED_IN' && currentUser) {
-                try {
-                    await db.sync()
-                } catch (e) {
-                    console.log('Sync error (offline?):', e)
+            if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+                if (currentUser) {
+                    try {
+                        await db.sync()
+                    } catch (e) {
+                        console.log('Sync error (offline?):', e)
+                    }
                 }
             } else if (event === 'SIGNED_OUT') {
+                setUser(null)
                 localStorage.removeItem('elegant_writer_notes')
                 window.dispatchEvent(new Event('notes-synced')) // Clear UI
             }
