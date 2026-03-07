@@ -4,13 +4,13 @@ import SearchModal from './SearchModal'
 import Modal from './Modal'
 import { calculateStreak } from '../hooks/useStats'
 import { db } from '../lib/db'
-import { Home, Search, Trash2, CircleUser, Plus, Menu, ArrowLeft, FilePlus, FolderPlus, User, ChevronRight } from 'lucide-react'
+import { Home, Search, Trash2, CircleUser, Plus, Menu, ArrowLeft, FilePlus, FolderPlus, User, ChevronRight, Flame } from 'lucide-react'
 
 // Icons
 const HomeIcon = () => <Home className="w-6 h-6" />
-const SearchIcon = () => <Search className="w-5 h-5" />
-const TrashIcon = () => <Trash2 className="w-5 h-5" />
-const ProfileIcon = () => <CircleUser className="w-6 h-6" />
+const SearchIcon = () => <Search size={20} />
+const TrashIcon = () => <Trash2 size={20} />
+const ProfileIcon = () => <CircleUser size={22} />
 const PlusIcon = () => <Plus className="w-6 h-6" />
 const MenuIcon = () => <Menu className="w-6 h-6" />
 
@@ -57,69 +57,89 @@ export default function Layout({
             <div className="flex flex-col items-center min-h-screen overflow-x-hidden pb-24 md:pb-12 md:p-12" style={{ backgroundColor: 'var(--bg-body)', color: 'var(--text-main)' }}>
                 <div className="w-full max-w-5xl px-4 pt-4 md:px-0 md:pt-0">
 
-                    {/* Header */}
-                    <div className="flex justify-between items-start mb-6 pb-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <div className="flex-grow min-w-0 w-full text-center md:text-left md:pr-4">
-                            <div className="flex items-center justify-center md:justify-start gap-1 md:gap-2">
+                    {/* Sticky Header */}
+                    <div className="app-header">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2 min-w-0">
                                 {isTrash && (
                                     <button
                                         onClick={() => onNavigate('root')}
-                                        className="p-2 -ml-2 md:-ml-4 rounded-full transition-all cursor-pointer hover:bg-neutral-500/10"
+                                        className="p-1.5 -ml-1.5 rounded-lg transition-all cursor-pointer hover:bg-neutral-500/10"
                                         style={{ color: 'var(--text-muted)' }}
                                         title="Back to Home"
                                     >
-                                        <ArrowLeft className="w-5 h-5 pointer-events-none" />
+                                        <ArrowLeft size={18} className="pointer-events-none" />
                                     </button>
                                 )}
                                 <h1
                                     onClick={() => onNavigate('root')}
-                                    className="text-2xl md:text-3xl font-bold tracking-tight cursor-pointer hover:opacity-80"
+                                    className="text-xl md:text-2xl font-bold cursor-pointer hover:opacity-80 transition-opacity"
                                     style={{ color: 'var(--text-main)' }}
                                 >
-                                    BrainLog
+                                    <span className="logo-accent">Brain</span>Log
                                 </h1>
-                            </div>
-                            {/* Breadcrumbs */}
-                            <div className="overflow-x-auto whitespace-nowrap scrollbar-hide w-full mask-linear-right">
-                                <div className="flex items-center justify-center md:justify-start text-sm mt-2 pb-1">
-                                    {breadcrumbs.map((crumb, index) => {
-                                        const isLast = index === breadcrumbs.length - 1
-                                        return (
-                                            <span key={crumb.id} className="flex items-center">
-                                                <span
-                                                    className={`breadcrumb-item${isLast ? ' active' : ''}`}
-                                                    onClick={isLast ? undefined : () => onNavigate(crumb.id)}
-                                                >
-                                                    {crumb.name}
+                                {/* Breadcrumbs */}
+                                {breadcrumbs.length > 1 && (
+                                    <div className="hidden md:flex items-center text-xs ml-2 overflow-x-auto whitespace-nowrap scrollbar-hide mask-linear-right" style={{ color: 'var(--text-muted)' }}>
+                                        <span className="mx-1.5" style={{ opacity: 0.4 }}>›</span>
+                                        {breadcrumbs.slice(1).map((crumb, index) => {
+                                            const isLast = index === breadcrumbs.slice(1).length - 1
+                                            return (
+                                                <span key={crumb.id} className="flex items-center">
+                                                    <span
+                                                        className={`breadcrumb-item${isLast ? ' active' : ''}`}
+                                                        onClick={isLast ? undefined : () => onNavigate(crumb.id)}
+                                                    >
+                                                        {crumb.name}
+                                                    </span>
+                                                    {!isLast && <span className="breadcrumb-separator">›</span>}
                                                 </span>
-                                                {!isLast && <span className="breadcrumb-separator">/</span>}
-                                            </span>
-                                        )
-                                    })}
-                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Desktop toolbar */}
+                            <div className="hidden md:flex gap-1 items-center flex-shrink-0">
+                                <button onClick={() => setSearchOpen(true)} className="view-btn" title="Search (Ctrl+K)">
+                                    <SearchIcon />
+                                </button>
+                                <button onClick={() => navigate('/stats')} className="view-btn gap-1 font-semibold px-2" title="Writing Stats">
+                                    <Flame size={18} className={streak > 0 ? 'text-orange-500' : ''} style={streak === 0 ? { color: 'var(--text-muted)', opacity: 0.5 } : undefined} />
+                                    <span className={`text-sm ${streak > 0 ? 'text-orange-600 dark:text-orange-400' : ''}`} style={streak === 0 ? { color: 'var(--text-muted)' } : undefined}>{streak}</span>
+                                </button>
+                                <button
+                                    onClick={() => isTrash ? onNavigate('root') : onNavigate('trash')}
+                                    className={`trash-btn${isTrash ? ' active' : ''}`}
+                                    title="Trash"
+                                >
+                                    <TrashIcon />
+                                </button>
+                                <button onClick={() => navigate('/settings')} className="profile-btn w-10 h-10" title="Settings">
+                                    <ProfileIcon />
+                                </button>
                             </div>
                         </div>
-
-                        {/* Desktop toolbar */}
-                        <div className="hidden md:flex gap-2 items-center flex-shrink-0">
-                            <button onClick={() => setSearchOpen(true)} className="view-btn" title="Search (Ctrl+K)">
-                                <SearchIcon />
-                            </button>
-                            <button onClick={() => navigate('/stats')} className="view-btn gap-1 font-semibold px-3" title="Writing Stats">
-                                <span>🔥</span>
-                                <span className="text-orange-600 dark:text-orange-400">{streak}</span>
-                            </button>
-                            <button
-                                onClick={() => isTrash ? onNavigate('root') : onNavigate('trash')}
-                                className={`trash-btn${isTrash ? ' active' : ''}`}
-                                title="Trash"
-                            >
-                                <TrashIcon />
-                            </button>
-                            <button onClick={() => navigate('/settings')} className="profile-btn w-11 h-11" title="Settings">
-                                <ProfileIcon />
-                            </button>
-                        </div>
+                        {/* Mobile breadcrumbs */}
+                        {breadcrumbs.length > 1 && (
+                            <div className="md:hidden flex items-center text-xs mt-1 overflow-x-auto whitespace-nowrap scrollbar-hide mask-linear-right" style={{ color: 'var(--text-muted)' }}>
+                                {breadcrumbs.map((crumb, index) => {
+                                    const isLast = index === breadcrumbs.length - 1
+                                    return (
+                                        <span key={crumb.id} className="flex items-center">
+                                            <span
+                                                className={`breadcrumb-item${isLast ? ' active' : ''}`}
+                                                onClick={isLast ? undefined : () => onNavigate(crumb.id)}
+                                            >
+                                                {crumb.name}
+                                            </span>
+                                            {!isLast && <span className="breadcrumb-separator">›</span>}
+                                        </span>
+                                    )
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     {/* Desktop action bar */}
@@ -152,8 +172,8 @@ export default function Layout({
                         <HomeIcon />
                     </button>
                     <button onClick={() => navigate('/stats')} className="flex items-center gap-1.5 p-2 active:scale-90 transition-transform">
-                        <span className="text-lg">🔥</span>
-                        <span className="font-bold text-orange-600 dark:text-orange-400 text-sm">{streak}</span>
+                        <span className="text-lg" style={streak === 0 ? { filter: 'grayscale(1)', opacity: 0.5 } : undefined}>🔥</span>
+                        <span className={`font-bold text-sm ${streak > 0 ? 'text-orange-600 dark:text-orange-400' : ''}`} style={streak === 0 ? { color: 'var(--text-muted)' } : undefined}>{streak}</span>
                     </button>
                     <button onClick={() => setSearchOpen(true)} className="p-2 active:scale-90 transition-transform" style={{ color: 'var(--text-muted)' }}>
                         <SearchIcon />

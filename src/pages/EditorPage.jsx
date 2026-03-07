@@ -459,6 +459,8 @@ export default function EditorPage() {
                             <span className="font-medium text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{wordCount} words</span>
                             <button
                                 onClick={(e) => { e.stopPropagation(); setStatsOpen(v => !v); setMenuOpen(false) }}
+                                onMouseEnter={() => setStatsOpen(true)}
+                                onMouseLeave={() => setStatsOpen(false)}
                                 className="p-1 rounded-full transition-colors"
                                 style={{ color: 'var(--text-muted)' }}
                             >
