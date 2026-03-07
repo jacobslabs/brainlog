@@ -52,14 +52,18 @@ export default function SettingsPage() {
 
     return (
         <div
-            className="flex flex-col items-center min-h-screen p-6"
+            className="flex flex-col items-center min-h-screen pb-24 md:pb-12 md:p-12"
             style={{ backgroundColor: 'var(--bg-body)', color: 'var(--text-main)' }}
         >
-            <div className="w-full max-w-2xl">
+            <div className="w-full max-w-3xl px-4 pt-4 md:px-0 md:pt-0">
 
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-8">
-                    <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full transition-all" style={{ color: 'var(--text-muted)' }}>
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 -ml-2 rounded-full transition-all cursor-pointer hover:bg-neutral-500/10"
+                        style={{ color: 'var(--text-muted)' }}
+                    >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                         </svg>

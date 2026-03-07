@@ -83,13 +83,27 @@ export default function Layout({
                     {/* Header */}
                     <div className="flex justify-between items-start mb-6 pb-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
                         <div className="flex-grow min-w-0 w-full text-center md:text-left md:pr-4">
-                            <h1
-                                onClick={() => onNavigate('root')}
-                                className="text-2xl md:text-3xl font-bold tracking-tight cursor-pointer hover:opacity-80"
-                                style={{ color: 'var(--text-main)' }}
-                            >
-                                BrainLog
-                            </h1>
+                            <div className="flex items-center justify-center md:justify-start gap-1 md:gap-2">
+                                {isTrash && (
+                                    <button
+                                        onClick={() => onNavigate('root')}
+                                        className="p-2 -ml-2 md:-ml-4 rounded-full transition-all cursor-pointer hover:bg-neutral-500/10"
+                                        style={{ color: 'var(--text-muted)' }}
+                                        title="Back to Home"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                                        </svg>
+                                    </button>
+                                )}
+                                <h1
+                                    onClick={() => onNavigate('root')}
+                                    className="text-2xl md:text-3xl font-bold tracking-tight cursor-pointer hover:opacity-80"
+                                    style={{ color: 'var(--text-main)' }}
+                                >
+                                    BrainLog
+                                </h1>
+                            </div>
                             {/* Breadcrumbs */}
                             <div className="overflow-x-auto whitespace-nowrap scrollbar-hide w-full mask-linear-right">
                                 <div className="flex items-center justify-center md:justify-start text-sm mt-2 pb-1">
