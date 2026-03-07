@@ -9,9 +9,9 @@ export function AuthProvider({ children }) {
     const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
-        // Initial setup only fetches session to unblock UI render
-        auth.getUser().then((u) => {
-            setUser(u)
+        // 1. Fetch fast local session to unblock UI
+        auth.getSession().then((session) => {
+            setUser(session?.user || null)
             setIsLoading(false)
         })
 
