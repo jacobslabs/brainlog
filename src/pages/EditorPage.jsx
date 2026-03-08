@@ -189,8 +189,24 @@ export default function EditorPage() {
         if (!wrapper) return
         const sel = window.getSelection()
         if (!sel.rangeCount) return
-        const rect = sel.getRangeAt(0).getBoundingClientRect()
-        if (rect.top === 0 && rect.bottom === 0) return
+
+        let rect = sel.getRangeAt(0).getBoundingClientRect()
+
+        // When cursor is at an empty line (after BR), the range rect may be zero.
+        // Fall back to inserting a temporary span to measure the cursor position.
+        if (rect.height === 0 || (rect.top === 0 && rect.bottom === 0)) {
+            const temp = document.createElement('span')
+            temp.textContent = '\u200B'
+            const range = sel.getRangeAt(0).cloneRange()
+            range.insertNode(temp)
+            rect = temp.getBoundingClientRect()
+            temp.remove()
+            // Restore selection after removing temp node
+            sel.removeAllRanges()
+            sel.addRange(range)
+            if (rect.top === 0 && rect.bottom === 0) return
+        }
+
         const wRect = wrapper.getBoundingClientRect()
         const offset = (rect.top - wRect.top) - (wRect.height / 2) + (rect.height / 2)
         if (Math.abs(offset) > 1) {
@@ -287,7 +303,8 @@ export default function EditorPage() {
         if (e.key === 'Enter') {
             e.preventDefault()
             document.execCommand('insertLineBreak')
-            // onInput event will trigger handleInput for stats/save/highlight
+            // Double-rAF to let the browser lay out the new line before scrolling
+            requestAnimationFrame(() => requestAnimationFrame(() => scrollEngine(true)))
         }
     }
 
