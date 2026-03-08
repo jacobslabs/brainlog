@@ -22,6 +22,7 @@ export default function SettingsPage() {
         const v = e.target.value
         setViewMode(v)
         localStorage.setItem('brainlog_view_mode', v)
+        db.updateProfile()
     }
 
     function handleGoalChange(e) {

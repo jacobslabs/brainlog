@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { formatDate, parseNoteContent } from '../hooks/useNotes'
+import { formatDate, parseNoteContent, getItemsCached } from '../hooks/useNotes'
 import { Search, X, Folder, FileText } from 'lucide-react'
 
 function highlightMatch(text, query) {
@@ -20,13 +20,18 @@ export default function SearchModal({ isOpen, onClose }) {
     const [results, setResults] = useState([])
     const inputRef = useRef(null)
     const navigate = useNavigate()
+    const cachedItemsRef = useRef([])
+    const debounceRef = useRef(null)
 
     useEffect(() => {
         if (isOpen) {
             setQuery('')
             setResults([])
+            // Cache items once on open (avoids JSON.parse per keystroke)
+            cachedItemsRef.current = getItemsCached().filter(i => !i.isTrashed)
             setTimeout(() => inputRef.current?.focus(), 50)
         }
+        return () => clearTimeout(debounceRef.current)
     }, [isOpen])
 
     useEffect(() => {
@@ -38,19 +43,24 @@ export default function SearchModal({ isOpen, onClose }) {
         return () => document.removeEventListener('keydown', handler)
     }, [isOpen, onClose])
 
-    function handleSearch(e) {
-        const q = e.target.value
-        setQuery(q)
+    function performSearch(q) {
         const trimmed = q.toLowerCase().trim()
         if (!trimmed) { setResults([]); return }
 
-        const items = JSON.parse(localStorage.getItem('elegant_writer_notes') || '[]').filter(i => !i.isTrashed)
-        const matches = items.filter(item => {
+        const matches = cachedItemsRef.current.filter(item => {
             if (item.type === 'folder') return item.name.toLowerCase().includes(trimmed)
             const text = item.content.replace(/<[^>]*>?/gm, ' ').toLowerCase()
             return text.includes(trimmed)
         })
         setResults(matches)
+    }
+
+    function handleSearch(e) {
+        const q = e.target.value
+        setQuery(q)
+        clearTimeout(debounceRef.current)
+        if (!q.trim()) { setResults([]); return }
+        debounceRef.current = setTimeout(() => performSearch(q), 150)
     }
 
     function handleSelect(item) {

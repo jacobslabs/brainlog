@@ -31,7 +31,10 @@ export default function Layout({
     const breadcrumbRef = useRef(null)
 
     useEffect(() => {
-        setStreak(calculateStreak())
+        const updateStreak = () => setStreak(calculateStreak())
+        updateStreak()
+        window.addEventListener('notes-synced', updateStreak)
+        return () => window.removeEventListener('notes-synced', updateStreak)
     }, [])
 
     // Auto-scroll breadcrumbs to show current folder

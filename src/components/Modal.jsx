@@ -18,7 +18,7 @@ export default function Modal({ isOpen, title, placeholder, onClose, onSubmit, d
         }
         document.addEventListener('keydown', handler)
         return () => document.removeEventListener('keydown', handler)
-    })
+    }, [isOpen, onClose])
 
     function handleSubmit() {
         const name = inputRef.current?.value.trim()

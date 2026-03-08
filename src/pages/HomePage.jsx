@@ -1,26 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../components/Layout'
 import Modal from '../components/Modal'
 import { db } from '../lib/db'
-import { formatDate, parseNoteContent } from '../hooks/useNotes'
+import { formatDate, parseNoteContent, getItemsCached, saveItemsCached, invalidateCache } from '../hooks/useNotes'
 import { CornerUpLeft, Trash2, X, Folder, Pencil } from 'lucide-react'
-
-const STORAGE_KEY = 'elegant_writer_notes'
-
-function getItems() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-}
-function saveLocal(items) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-}
 
 export default function HomePage() {
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
     const folderParam = searchParams.get('folder')
     const [currentFolderId, setCurrentFolderId] = useState(folderParam || 'root')
-    const [items, setItems] = useState(() => getItems())
+    const [items, setItems] = useState(() => [...getItemsCached()])
     const [modalState, setModalState] = useState({ open: false, mode: 'create', targetId: null, defaultValue: '' })
     const [viewMode, setViewMode] = useState(() => localStorage.getItem('brainlog_view_mode') || 'grid-view')
 
@@ -29,7 +20,10 @@ export default function HomePage() {
         setViewMode(localStorage.getItem('brainlog_view_mode') || 'grid-view')
     }, [])
 
-    const refresh = useCallback(() => setItems(getItems()), [])
+    const refresh = useCallback(() => {
+        setItems([...getItemsCached()])
+        setViewMode(localStorage.getItem('brainlog_view_mode') || 'grid-view')
+    }, [])
 
     useEffect(() => {
         if (folderParam) setCurrentFolderId(folderParam)
@@ -50,10 +44,10 @@ export default function HomePage() {
 
     const isTrash = currentFolderId === 'trash'
 
-    // Build breadcrumbs
-    const breadcrumbs = (() => {
+    // Build breadcrumbs (memoized)
+    const breadcrumbs = useMemo(() => {
         if (isTrash) return [{ id: 'trash', name: 'Trash Directory' }]
-        const allItems = getItems()
+        const allItems = getItemsCached()
         const path = []
         let tempId = currentFolderId
         let safety = 0
@@ -65,10 +59,10 @@ export default function HomePage() {
         }
         path.unshift({ id: 'root', name: 'Home' })
         return path
-    })()
+    }, [currentFolderId, items, isTrash])
 
-    // Filtered & sorted items
-    const visibleItems = (() => {
+    // Filtered & sorted items (memoized)
+    const visibleItems = useMemo(() => {
         return [...items]
             .filter(i => isTrash ? i.isTrashed : (!i.isTrashed && (i.parentId || 'root') === currentFolderId))
             .sort((a, b) => {
@@ -76,14 +70,14 @@ export default function HomePage() {
                 if (a.type !== 'folder' && b.type === 'folder') return 1
                 return b.updatedAt - a.updatedAt
             })
-    })()
+    }, [items, currentFolderId, isTrash])
 
     async function createNote() {
         if (isTrash) return
-        const all = getItems()
+        const all = getItemsCached()
         const newNote = { id: crypto.randomUUID(), type: 'note', parentId: currentFolderId, content: '<div><br></div>', updatedAt: Date.now(), isTrashed: false }
         all.push(newNote)
-        saveLocal(all)
+        saveItemsCached(all)
         await db.pushItem(newNote)
         navigate(`/note/${newNote.id}`)
     }
@@ -94,34 +88,34 @@ export default function HomePage() {
     }
 
     function handleModalSubmit(name) {
-        const all = getItems()
+        const all = getItemsCached()
         if (modalState.mode === 'create') {
             const newFolder = { id: crypto.randomUUID(), type: 'folder', parentId: currentFolderId, name, updatedAt: Date.now(), isTrashed: false }
             all.push(newFolder)
-            saveLocal(all)
+            saveItemsCached(all)
             db.pushItem(newFolder)
         } else if (modalState.mode === 'rename') {
             const idx = all.findIndex(i => i.id === modalState.targetId)
             if (idx > -1) { all[idx].name = name; all[idx].updatedAt = Date.now(); db.pushItem(all[idx]) }
-            saveLocal(all)
+            saveItemsCached(all)
         }
         refresh()
     }
 
     function deleteItem(e, itemId) {
         e.preventDefault(); e.stopPropagation()
-        const all = getItems()
+        const all = getItemsCached()
         const idx = all.findIndex(i => i.id === itemId)
         if (idx === -1) return
         if (all[idx].isTrashed) {
             if (!confirm('Permanently delete this?')) return
             all.splice(idx, 1)
-            saveLocal(all)
+            saveItemsCached(all)
             db.deleteItem(itemId)
         } else {
             all[idx].isTrashed = true
             all[idx].trashedAt = Date.now()
-            saveLocal(all)
+            saveItemsCached(all)
             db.pushItem(all[idx])
         }
         refresh()
@@ -129,12 +123,12 @@ export default function HomePage() {
 
     function restoreItem(e, itemId) {
         e.preventDefault(); e.stopPropagation()
-        const all = getItems()
+        const all = getItemsCached()
         const idx = all.findIndex(i => i.id === itemId)
         if (idx > -1) {
             all[idx].isTrashed = false
             delete all[idx].trashedAt
-            saveLocal(all)
+            saveItemsCached(all)
             db.pushItem(all[idx])
             refresh()
         }

@@ -1,7 +1,6 @@
 import { supabase } from './supabase'
 import { auth } from './auth'
-
-const STORAGE_KEY = 'elegant_writer_notes'
+import { saveItemsCached, getItemsCached, invalidateCache } from '../hooks/useNotes'
 
 export const db = {
     // 1. SYNC: Download Cloud Data -> Merge with Local
@@ -12,7 +11,7 @@ export const db = {
         const { data: cloudNotes, error } = await supabase.from('notes').select('*')
         if (error) console.error('Notes Sync Error:', error)
 
-        const localNotes = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+        const localNotes = getItemsCached()
         const mergedMap = new Map()
 
         localNotes.forEach((n) => mergedMap.set(n.id, n))
@@ -37,7 +36,7 @@ export const db = {
             })
         }
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(mergedMap.values())))
+        saveItemsCached(Array.from(mergedMap.values()))
 
         await this.syncProfile(user.id)
         window.dispatchEvent(new Event('notes-synced'))
@@ -72,7 +71,7 @@ export const db = {
         const user = auth.currentUser
         if (!user) return
 
-        const localNotes = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+        const localNotes = getItemsCached()
         if (localNotes.length === 0) return
 
         const payload = localNotes.map((n) => ({
@@ -96,7 +95,8 @@ export const db = {
     async logout() {
         await this.uploadAll()
         await auth.signOut()
-        localStorage.removeItem(STORAGE_KEY)
+        invalidateCache()
+        localStorage.removeItem('elegant_writer_notes')
         localStorage.removeItem('brainlog_stats')
         localStorage.removeItem('brainlog_daily_goal')
     },
@@ -117,7 +117,7 @@ export const db = {
 
         if (data) {
             if (data.theme) localStorage.setItem('brainlog_theme', data.theme)
-            if (data.view_mode) localStorage.setItem('elegant_writer_view_pref', data.view_mode)
+            if (data.view_mode) localStorage.setItem('brainlog_view_mode', data.view_mode)
             if (data.daily_goal) localStorage.setItem('brainlog_daily_goal', data.daily_goal)
             if (data.stats) localStorage.setItem('brainlog_stats', JSON.stringify(data.stats))
 
@@ -136,7 +136,7 @@ export const db = {
         const payload = {
             id: user.id,
             theme: localStorage.getItem('brainlog_theme') || 'system',
-            view_mode: localStorage.getItem('elegant_writer_view_pref') || 'grid',
+            view_mode: localStorage.getItem('brainlog_view_mode') || 'grid-view',
             daily_goal: parseInt(localStorage.getItem('brainlog_daily_goal') || 0),
             stats: JSON.parse(localStorage.getItem('brainlog_stats') || '{}'),
             updated_at: new Date(),

@@ -2,10 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { db } from '../lib/db'
 import { saveWordStats, countWords } from '../hooks/useStats'
+import { getItemsCached, saveItemsCached } from '../hooks/useNotes'
 import { ArrowLeft, Check, Info, Menu, Maximize } from 'lucide-react'
-
-const STORAGE_KEY = 'elegant_writer_notes'
-function getNotes() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') }
 
 // Strip legacy span wrappers from old saved content
 function migrateContent(html) {
@@ -103,6 +101,10 @@ export default function EditorPage() {
     const isAutoScrollingRef = useRef(false)
     const scrollTimeoutRef = useRef(null)
     const startWordCountRef = useRef(0)
+    const latestWordCountRef = useRef(0)
+    const lastProfileSyncRef = useRef(0)
+    const [progressPct, setProgressPct] = useState(0)
+    const [showProgress, setShowProgress] = useState(false)
 
     // ---- HIGHLIGHT (sentence focus) ----
     const updateHighlight = useCallback(() => {
@@ -217,63 +219,67 @@ export default function EditorPage() {
 
     function performSave() {
         if (!NOTE_ID) return
-        const notes = getNotes()
+        const notes = getItemsCached()
         const idx = notes.findIndex(n => n.id === NOTE_ID)
         if (idx > -1) {
             notes[idx].content = editableRef.current.innerHTML
             notes[idx].updatedAt = Date.now()
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
+            saveItemsCached(notes)
             db.pushItem(notes[idx])
-            db.updateProfile()
+
+            // Deferred stat tracking (moved from per-keystroke to per-save)
+            const currentCount = latestWordCountRef.current
+            const delta = currentCount - startWordCountRef.current
+            if (delta !== 0) {
+                saveWordStats(delta)
+                startWordCountRef.current = currentCount
+            }
+
+            // Update progress bar
+            updateProgressBar()
+
+            // Throttled profile sync (once per 30s instead of every save)
+            const now = Date.now()
+            if (now - lastProfileSyncRef.current >= 30000) {
+                lastProfileSyncRef.current = now
+                db.updateProfile()
+            }
+
             renderStatus('saving')
         }
     }
 
     // ---- STATS ----
-    function updateStats() {
-        const el = editableRef.current
-        if (!el) return
-        const text = el.innerText || ''
-        const wc = countWords(text)
-        const sc = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length
-        const rt = Math.ceil(wc / 200)
-        setWordCount(wc)
-        setSentenceCount(sc)
-        setReadTime(rt)
-
-        // Daily progress bar
+    function updateProgressBar() {
         const dailyGoal = parseInt(localStorage.getItem('brainlog_daily_goal') || 0)
-        const bar = document.getElementById('daily-progress-bar')
-        const barContainer = document.getElementById('daily-progress-container')
-        if (bar && barContainer) {
-            if (dailyGoal > 0) {
-                const stats = JSON.parse(localStorage.getItem('brainlog_stats') || '{"daily":{}}')
-                const today = new Date().toISOString().split('T')[0]
-                const dailyTotal = stats.daily?.[today] || 0
-                const pct = Math.min((dailyTotal / dailyGoal) * 100, 100)
-                bar.style.width = `${pct}%`
-                barContainer.style.display = 'block'
-                bar.className = pct >= 100 ? 'goal-met' : pct > 0 ? 'active' : ''
-            } else {
-                barContainer.style.display = 'none'
-            }
+        if (dailyGoal > 0) {
+            const stats = JSON.parse(localStorage.getItem('brainlog_stats') || '{"daily":{}}')
+            const today = new Date().toISOString().split('T')[0]
+            const dailyTotal = stats.daily?.[today] || 0
+            const pct = Math.min((dailyTotal / dailyGoal) * 100, 100)
+            setProgressPct(pct)
+            setShowProgress(true)
+        } else {
+            setShowProgress(false)
         }
-    }
-
-    function updateTracking() {
-        const text = editableRef.current?.innerText || ''
-        const currentCount = countWords(text)
-        const delta = currentCount - startWordCountRef.current
-        if (delta !== 0) { saveWordStats(delta); startWordCountRef.current = currentCount }
     }
 
     // ---- HANDLERS ----
     function handleInput() {
-        updateTracking()
-        updateHighlight()
-        updateStats()
+        const text = editableRef.current?.innerText || ''
+        const wc = countWords(text)
+        latestWordCountRef.current = wc
+
+        // Update display state immediately
+        setWordCount(wc)
+        setSentenceCount(text.split(/[.!?]+/).filter(s => s.trim().length > 0).length)
+        setReadTime(Math.ceil(wc / 200))
+
         queueSave()
-        requestAnimationFrame(() => scrollEngine(false))
+        requestAnimationFrame(() => {
+            updateHighlight()
+            scrollEngine(false)
+        })
     }
 
     function handleKeyDown(e) {
@@ -281,10 +287,7 @@ export default function EditorPage() {
         if (e.key === 'Enter') {
             e.preventDefault()
             document.execCommand('insertLineBreak')
-            updateHighlight()
-            updateStats()
-            queueSave()
-            requestAnimationFrame(() => scrollEngine(false))
+            // onInput event will trigger handleInput for stats/save/highlight
         }
     }
 
@@ -338,7 +341,7 @@ export default function EditorPage() {
     // ---- INIT ----
     useEffect(() => {
         if (!NOTE_ID) { navigate('/'); return }
-        const notes = getNotes()
+        const notes = getItemsCached()
         const note = notes.find(n => n.id === NOTE_ID)
 
         if (note) {
@@ -349,11 +352,16 @@ export default function EditorPage() {
 
         setCursorToEnd()
         editableRef.current.focus()
-        updateStats()
-        updateHighlight()
 
         const text = editableRef.current?.innerText || ''
-        startWordCountRef.current = countWords(text)
+        const wc = countWords(text)
+        latestWordCountRef.current = wc
+        startWordCountRef.current = wc
+        setWordCount(wc)
+        setSentenceCount(text.split(/[.!?]+/).filter(s => s.trim().length > 0).length)
+        setReadTime(Math.ceil(wc / 200))
+        updateProgressBar()
+        updateHighlight()
 
         let attempts = 0
         const interval = setInterval(() => {
@@ -362,9 +370,24 @@ export default function EditorPage() {
             if (attempts > 5) { clearInterval(interval); wrapperRef.current?.classList.add('ready') }
         }, 20)
 
+        const handleBeforeUnload = () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
+                performSave()
+            }
+            db.updateProfile()
+        }
+        window.addEventListener('beforeunload', handleBeforeUnload)
+
         return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload)
+            // Flush pending save on unmount
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
+                performSave()
+            }
+            db.updateProfile()
             clearInterval(interval)
-            clearTimeout(saveTimeoutRef.current)
             clearTimeout(visualTimeoutRef.current)
             CSS.highlights?.delete('active-sentence')
             document.body.classList.remove('zen-mode', 'is-scrolling')
@@ -436,8 +459,8 @@ export default function EditorPage() {
                     className="fixed bottom-0 left-0 w-full z-50 flex justify-center items-start pt-3"
                     style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}
                 >
-                    <div id="daily-progress-container" title="Daily Goal Progress">
-                        <div id="daily-progress-bar" />
+                    <div id="daily-progress-container" style={{ display: showProgress ? '' : 'none' }} title="Daily Goal Progress">
+                        <div id="daily-progress-bar" className={progressPct >= 100 ? 'goal-met' : progressPct > 0 ? 'active' : ''} style={{ width: `${progressPct}%` }} />
                     </div>
 
                     <div className="flex items-center gap-8 h-10 relative">

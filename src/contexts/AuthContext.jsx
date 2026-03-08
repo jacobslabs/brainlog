@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo } from 'react'
 import { auth } from '../lib/auth'
 import { db } from '../lib/db'
+import { invalidateCache } from '../hooks/useNotes'
 
 const AuthContext = createContext(null)
 
@@ -30,6 +31,7 @@ export function AuthProvider({ children }) {
                 }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null)
+                invalidateCache()
                 localStorage.removeItem('elegant_writer_notes')
                 window.dispatchEvent(new Event('notes-synced')) // Clear UI
             }
@@ -38,8 +40,10 @@ export function AuthProvider({ children }) {
         return () => subscription.unsubscribe()
     }, [])
 
+    const value = useMemo(() => ({ user, isLoading, setUser }), [user, isLoading])
+
     return (
-        <AuthContext.Provider value={{ user, isLoading, setUser }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     )

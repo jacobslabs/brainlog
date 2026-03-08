@@ -2,15 +2,33 @@ import { useState, useCallback } from 'react'
 
 const STORAGE_KEY = 'elegant_writer_notes'
 
+// ── Module-level cache ──
+let _cache = null
+
+export function getItemsCached() {
+    if (_cache === null) {
+        _cache = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    }
+    return _cache
+}
+
+export function saveItemsCached(items) {
+    _cache = items
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+}
+
+export function invalidateCache() {
+    _cache = null
+}
+
+// ── Hook (for components that need reactive updates) ──
 export function useNotes() {
     const [, forceUpdate] = useState(0)
 
-    const getItems = useCallback(() => {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    }, [])
+    const getItems = useCallback(() => getItemsCached(), [])
 
     const saveLocal = useCallback((items) => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+        saveItemsCached(items)
         forceUpdate((n) => n + 1)
     }, [])
 
