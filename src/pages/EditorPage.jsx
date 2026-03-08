@@ -94,7 +94,6 @@ export default function EditorPage() {
     const [saveState, setSaveState] = useState('idle')
     const [menuOpen, setMenuOpen] = useState(false)
     const [statsOpen, setStatsOpen] = useState(false)
-    const [backHref, setBackHref] = useState('/')
 
     const saveTimeoutRef = useRef(null)
     const visualTimeoutRef = useRef(null)
@@ -208,7 +207,9 @@ export default function EditorPage() {
         }
 
         const wRect = wrapper.getBoundingClientRect()
-        const offset = (rect.top - wRect.top) - (wRect.height / 2) + (rect.height / 2)
+        // On mobile, position cursor at ~35% from top to leave room above keyboard
+        const ratio = window.innerWidth < 768 ? 0.35 : 0.5
+        const offset = (rect.top - wRect.top) - (wRect.height * ratio) + (rect.height / 2)
         if (Math.abs(offset) > 1) {
             isAutoScrollingRef.current = true
             clearTimeout(scrollTimeoutRef.current)
@@ -363,7 +364,6 @@ export default function EditorPage() {
 
         if (note) {
             editableRef.current.innerHTML = migrateContent(note.content)
-            if (note.parentId) setBackHref(`/?folder=${note.parentId}`)
             renderStatus('saved')
         }
 
@@ -481,13 +481,13 @@ export default function EditorPage() {
                     </div>
 
                     <div className="flex items-center gap-8 h-10 relative">
-                        <a
-                            href={backHref}
+                        <button
+                            onClick={() => navigate(-1)}
                             className="footer-btn p-2 rounded-full h-10 w-10 flex items-center justify-center"
                             title="Back to Notes"
                         >
                             <ArrowLeft className="w-5 h-5 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
-                        </a>
+                        </button>
 
                         <div className="flex items-center gap-2 h-10 relative">
                             <div id="save-indicator">

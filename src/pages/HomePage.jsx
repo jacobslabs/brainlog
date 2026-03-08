@@ -8,7 +8,7 @@ import { CornerUpLeft, Trash2, X, Folder, Pencil } from 'lucide-react'
 
 export default function HomePage() {
     const navigate = useNavigate()
-    const [searchParams, setSearchParams] = useSearchParams()
+    const [searchParams] = useSearchParams()
     const folderParam = searchParams.get('folder')
     const [currentFolderId, setCurrentFolderId] = useState(folderParam || 'root')
     const [items, setItems] = useState(() => [...getItemsCached()])
@@ -37,10 +37,9 @@ export default function HomePage() {
 
     const navigateTo = useCallback((folderId) => {
         setCurrentFolderId(folderId)
-        if (folderId === 'root') setSearchParams({})
-        else if (folderId === 'trash') setSearchParams({ folder: 'trash' })
-        else setSearchParams({ folder: folderId })
-    }, [setSearchParams])
+        if (folderId === 'root') navigate('/')
+        else navigate(`/?folder=${folderId}`)
+    }, [navigate])
 
     const isTrash = currentFolderId === 'trash'
 
