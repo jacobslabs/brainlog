@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { calculateStreak, getStats } from '../hooks/useStats'
 import { ArrowLeft } from 'lucide-react'
@@ -8,6 +8,7 @@ export default function StatsPage() {
     const [stats, setStats] = useState({ daily: {}, totalWords: 0, wpmAvg: 0 })
     const [streak, setStreak] = useState(0)
     const [todayWords, setTodayWords] = useState(0)
+    const heatmapScrollRef = useRef(null)
 
     useEffect(() => {
         const s = getStats()
@@ -15,6 +16,13 @@ export default function StatsPage() {
         setStreak(calculateStreak())
         const today = new Date().toISOString().split('T')[0]
         setTodayWords(s.daily?.[today] || 0)
+
+        // Auto-scroll heatmap to the right (most recent)
+        requestAnimationFrame(() => {
+            if (heatmapScrollRef.current) {
+                heatmapScrollRef.current.scrollLeft = heatmapScrollRef.current.scrollWidth
+            }
+        })
     }, [])
 
     function clearStats() {
@@ -69,16 +77,18 @@ export default function StatsPage() {
             <div className="w-full max-w-5xl px-4 pt-4 md:px-0 md:pt-0">
 
                 {/* Header */}
-                <div className="flex items-center gap-4 mb-8">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-2 -ml-2 rounded-full transition-all cursor-pointer hover:bg-neutral-500/10"
-                        style={{ color: 'var(--text-muted)' }}
-                        title="Back"
-                    >
-                        <ArrowLeft className="w-5 h-5 pointer-events-none" />
-                    </button>
-                    <h1 className="text-2xl font-bold tracking-tight">Writing Activity</h1>
+                <div className="app-header">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-1.5 -ml-1.5 rounded-lg transition-all cursor-pointer hover:bg-neutral-500/10"
+                            style={{ color: 'var(--text-muted)' }}
+                            title="Back"
+                        >
+                            <ArrowLeft size={18} className="pointer-events-none" />
+                        </button>
+                        <h1 className="text-xl md:text-2xl font-bold"><span className="logo-accent">Writing</span> Activity</h1>
+                    </div>
                 </div>
 
                 {/* Stat Cards */}
@@ -95,7 +105,7 @@ export default function StatsPage() {
                 {/* Heatmap */}
                 <div className="card-base p-6 mb-8">
                     <h2 className="text-sm font-semibold mb-6">Contribution History</h2>
-                    <div className="w-full overflow-x-auto pb-2">
+                    <div ref={heatmapScrollRef} className="w-full overflow-x-auto pb-2">
                         <div className="graph-wrapper">
                             {/* Month labels */}
                             <div className="months-row">

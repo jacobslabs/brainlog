@@ -26,13 +26,13 @@ export function formatDate(timestamp) {
 }
 
 export function parseNoteContent(html) {
-    const tmp = document.createElement('DIV')
-    tmp.innerHTML = html
-    const lines = []
-    Array.from(tmp.childNodes).forEach((node) => {
-        let text = node.textContent || node.innerText || ''
-        text = text.replace(/\u00A0/g, ' ').trim()
-        if (text.length > 0) lines.push(text)
-    })
-    return lines
+    // Normalize <br> variants into newlines, then strip remaining tags
+    const text = html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/div>\s*<div[^>]*>/gi, '\n')
+        .replace(/<\/p>\s*<p[^>]*>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\u00A0/g, ' ')
+    return text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
 }

@@ -54,15 +54,17 @@ export default function SettingsPage() {
             <div className="w-full max-w-5xl px-4 pt-4 md:px-0 md:pt-0">
 
                 {/* Header */}
-                <div className="flex items-center gap-4 mb-8">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-2 -ml-2 rounded-full transition-all cursor-pointer hover:bg-neutral-500/10"
-                        style={{ color: 'var(--text-muted)' }}
-                    >
-                        <ArrowLeft className="w-5 h-5 pointer-events-none" />
-                    </button>
-                    <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+                <div className="app-header">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-1.5 -ml-1.5 rounded-lg transition-all cursor-pointer hover:bg-neutral-500/10"
+                            style={{ color: 'var(--text-muted)' }}
+                        >
+                            <ArrowLeft size={18} className="pointer-events-none" />
+                        </button>
+                        <h1 className="text-xl md:text-2xl font-bold"><span className="logo-accent">Settings</span></h1>
+                    </div>
                 </div>
 
                 {/* Appearance */}

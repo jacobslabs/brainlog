@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchModal from './SearchModal'
 import Modal from './Modal'
@@ -28,10 +28,18 @@ export default function Layout({
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [fabOpen, setFabOpen] = useState(false)
     const [streak, setStreak] = useState(0)
+    const breadcrumbRef = useRef(null)
 
     useEffect(() => {
         setStreak(calculateStreak())
     }, [])
+
+    // Auto-scroll breadcrumbs to show current folder
+    useEffect(() => {
+        if (breadcrumbRef.current) {
+            breadcrumbRef.current.scrollLeft = breadcrumbRef.current.scrollWidth
+        }
+    }, [breadcrumbs])
 
     // Ctrl+K global shortcut
     useEffect(() => {
@@ -78,26 +86,6 @@ export default function Layout({
                                 >
                                     <span className="logo-accent">Brain</span>Log
                                 </h1>
-                                {/* Breadcrumbs */}
-                                {breadcrumbs.length > 1 && (
-                                    <div className="hidden md:flex items-center text-xs ml-2 overflow-x-auto whitespace-nowrap scrollbar-hide mask-linear-right" style={{ color: 'var(--text-muted)' }}>
-                                        <span className="mx-1.5" style={{ opacity: 0.4 }}>›</span>
-                                        {breadcrumbs.slice(1).map((crumb, index) => {
-                                            const isLast = index === breadcrumbs.slice(1).length - 1
-                                            return (
-                                                <span key={crumb.id} className="flex items-center">
-                                                    <span
-                                                        className={`breadcrumb-item${isLast ? ' active' : ''}`}
-                                                        onClick={isLast ? undefined : () => onNavigate(crumb.id)}
-                                                    >
-                                                        {crumb.name}
-                                                    </span>
-                                                    {!isLast && <span className="breadcrumb-separator">›</span>}
-                                                </span>
-                                            )
-                                        })}
-                                    </div>
-                                )}
                             </div>
 
                             {/* Desktop toolbar */}
@@ -121,13 +109,13 @@ export default function Layout({
                                 </button>
                             </div>
                         </div>
-                        {/* Mobile breadcrumbs */}
+                        {/* Breadcrumbs */}
                         {breadcrumbs.length > 1 && (
-                            <div className="md:hidden flex items-center text-xs mt-1 overflow-x-auto whitespace-nowrap scrollbar-hide mask-linear-right" style={{ color: 'var(--text-muted)' }}>
+                            <div ref={breadcrumbRef} className="flex items-center text-xs mt-1.5 overflow-x-auto whitespace-nowrap scrollbar-hide" style={{ color: 'var(--text-muted)' }}>
                                 {breadcrumbs.map((crumb, index) => {
                                     const isLast = index === breadcrumbs.length - 1
                                     return (
-                                        <span key={crumb.id} className="flex items-center">
+                                        <span key={crumb.id} className="flex items-center flex-shrink-0">
                                             <span
                                                 className={`breadcrumb-item${isLast ? ' active' : ''}`}
                                                 onClick={isLast ? undefined : () => onNavigate(crumb.id)}
@@ -233,32 +221,34 @@ export default function Layout({
                 className={`fixed bottom-0 left-0 w-full rounded-t-2xl z-[70] transform transition-transform duration-300 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] pb-safe ${drawerOpen ? 'translate-y-0' : 'translate-y-full'}`}
                 style={{ backgroundColor: 'var(--bg-card)', borderTop: '1px solid var(--border-color)' }}
             >
-                <div className="p-4 flex justify-center w-full" onClick={() => setDrawerOpen(false)}>
-                    <div className="w-12 h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+                <div className="pt-3 pb-2 flex justify-center w-full" onClick={() => setDrawerOpen(false)}>
+                    <div className="w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600" />
                 </div>
-                <div className="px-4 pb-32 grid gap-2">
+                <div className="px-4 pb-6 grid gap-1">
                     <button
                         onClick={() => { navigate('/settings'); setDrawerOpen(false) }}
-                        className="flex items-center gap-4 p-4 hover:bg-neutral-500/5 rounded-xl transition-colors w-full text-left"
+                        className="flex items-center gap-3 px-3 py-3 hover:bg-neutral-500/5 rounded-xl transition-colors w-full text-left"
                     >
-                        <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
-                            <User className="w-6 h-6" />
+                        <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+                            <User className="w-5 h-5" />
                         </div>
                         <div className="flex-grow">
-                            <div className="font-bold text-lg" style={{ color: 'var(--text-main)' }}>Profile & Settings</div>
-                            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Manage account and theme</div>
+                            <div className="font-semibold text-[15px]" style={{ color: 'var(--text-main)' }}>Profile & Settings</div>
+                            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Manage account and theme</div>
                         </div>
-                        <ChevronRight className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />
+                        <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                     </button>
+
+                    <div className="mx-3 border-t" style={{ borderColor: 'var(--border-color)' }} />
 
                     <button
                         onClick={() => { isTrash ? onNavigate('root') : onNavigate('trash'); setDrawerOpen(false) }}
-                        className="flex items-center gap-4 p-4 hover:bg-neutral-500/5 rounded-xl transition-colors w-full text-left text-red-500 cursor-pointer"
+                        className="flex items-center gap-3 px-3 py-3 hover:bg-neutral-500/5 rounded-xl transition-colors w-full text-left text-red-500 cursor-pointer"
                     >
-                        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                            <Trash2 className="w-6 h-6" />
+                        <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                            <Trash2 className="w-5 h-5" />
                         </div>
-                        <div className="font-medium text-lg flex-grow">Trash Directory</div>
+                        <div className="font-semibold text-[15px] flex-grow">Trash</div>
                     </button>
                 </div>
             </div>
