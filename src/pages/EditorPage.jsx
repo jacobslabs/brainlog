@@ -102,6 +102,7 @@ export default function EditorPage() {
     const startWordCountRef = useRef(0)
     const latestWordCountRef = useRef(0)
     const lastProfileSyncRef = useRef(0)
+    const lastContentRef = useRef('')
     const [progressPct, setProgressPct] = useState(0)
     const [showProgress, setShowProgress] = useState(false)
 
@@ -236,10 +237,13 @@ export default function EditorPage() {
 
     function performSave() {
         if (!NOTE_ID) return
+        // Use live DOM if available, otherwise fall back to snapshot
+        const content = editableRef.current ? editableRef.current.innerHTML : lastContentRef.current
+        if (!content) return
         const notes = getItemsCached()
         const idx = notes.findIndex(n => n.id === NOTE_ID)
         if (idx > -1) {
-            notes[idx].content = editableRef.current.innerHTML
+            notes[idx].content = content
             notes[idx].updatedAt = Date.now()
             saveItemsCached(notes)
             db.pushItem(notes[idx])
@@ -286,6 +290,7 @@ export default function EditorPage() {
         const text = editableRef.current?.innerText || ''
         const wc = countWords(text)
         latestWordCountRef.current = wc
+        lastContentRef.current = editableRef.current?.innerHTML || ''
 
         // Update display state immediately
         setWordCount(wc)
@@ -364,6 +369,7 @@ export default function EditorPage() {
 
         if (note) {
             editableRef.current.innerHTML = migrateContent(note.content)
+            lastContentRef.current = editableRef.current.innerHTML
             renderStatus('saved')
         }
 
